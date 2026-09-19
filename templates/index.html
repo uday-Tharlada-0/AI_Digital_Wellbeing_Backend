@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Digital Wellbeing· Screen Time & Productivity</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+          mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+        },
+        colors: {
+          brand: {
+            50:  '#eef4ff',
+            100: '#e0ebff',
+            200: '#c2d7ff',
+            300: '#9bb9ff',
+            400: '#6f92ff',
+            500: '#4a6cf7',
+            600: '#3450e0',
+            700: '#293fb8',
+            800: '#233594',
+            900: '#202f74',
+          },
+          mint: {
+            400: '#34d3ac',
+            500: '#1fb894',
+          },
+          amber: {
+            400: '#ffb547',
+            500: '#f59e0b',
+          },
+          coral: {
+            400: '#ff7a68',
+            500: '#f65e4a',
+          }
+        },
+        boxShadow: {
+          card: '0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06)',
+          popover: '0 12px 32px rgba(16,24,40,.14)',
+        },
+        borderRadius: {
+          xl2: '1.1rem',
+        }
+      }
+    }
+  }
+</script>
+
+<!-- Chart.js -->
+<!-- Chart.js: jsDelivr mirrors npm directly (never 404s on a real version),
+     with a cdnjs fallback in case jsDelivr itself is unreachable. -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+        onerror="var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js';document.head.appendChild(s);"></script>
+
+<style>
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+  body { -webkit-font-smoothing: antialiased; }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(120,130,160,.35); border-radius: 8px; }
+  .dark ::-webkit-scrollbar-thumb { background: rgba(160,170,200,.25); }
+
+  .nav-item { transition: background-color .15s ease, color .15s ease; }
+  .nav-item[data-active="true"] {
+    background: linear-gradient(135deg, rgba(74,108,247,.14), rgba(74,108,247,.05));
+    color: #4a6cf7;
+  }
+  .dark .nav-item[data-active="true"] {
+    background: linear-gradient(135deg, rgba(111,146,255,.22), rgba(111,146,255,.08));
+    color: #9bb9ff;
+  }
+  .nav-item[data-active="true"] .nav-dot { opacity: 1; transform: scaleY(1); }
+  .nav-dot { opacity: 0; transform: scaleY(.3); transition: all .15s ease; }
+
+  .section-panel { display: none; }
+  .section-panel[data-visible="true"] { display: block; animation: fadeUp .25s ease; }
+  @keyframes fadeUp { from { opacity:0; transform: translateY(6px);} to {opacity:1; transform: translateY(0);} }
+
+  .ring-timer { transform: rotate(-90deg); }
+
+  .toggle-track { transition: background-color .18s ease; }
+  .toggle-dot { transition: transform .18s ease; }
+
+  .segmented button { transition: all .15s ease; }
+
+  .app-row:hover { background: rgba(74,108,247,.04); }
+  .dark .app-row:hover { background: rgba(111,146,255,.06); }
+
+  input[type="range"] { accent-color: #4a6cf7; }
+</style>
+</head>
+
+<body class="bg-slate-50 dark:bg-[#0b0f1a] text-slate-800 dark:text-slate-200 font-sans antialiased">
+
+<div class="flex h-screen overflow-hidden">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="w-[248px] shrink-0 h-full bg-white dark:bg-[#0f1420] border-r border-slate-200 dark:border-white/5 flex flex-col">
+    <!-- Logo -->
+    <div class="h-16 flex items-center gap-2.5 px-5 border-b border-slate-100 dark:border-white/5">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-card">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 2v6M12 16v6M2 12h6M16 12h6" stroke="white" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="white"/></svg>
+      </div>
+      <span class="font-extrabold text-[17px] tracking-tight text-slate-900 dark:text-white">AI Digital Wellbeing</span>
+    </div>
+
+    <!-- Nav -->
+    <nav id="sidebar-nav" class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+      <p class="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Overview</p>
+      <button data-target="dashboard" data-active="true" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium text-slate-600 dark:text-slate-300 relative">
+        <span class="nav-dot absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-brand-500"></span>
+        <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard
+      </button>
+      <button data-target="applications" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium text-slate-600 dark:text-slate-300 relative">
+        <span class="nav-dot absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-brand-500"></span>
+        <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 10h16M10 10v10"/></svg>
+        Applications
+      </button>
+      <button data-target="alerts" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium text-slate-600 dark:text-slate-300 relative">
+        <span class="nav-dot absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-brand-500"></span>
+        <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+        Alerts &amp; Limits
+      </button>
+      <button data-target="analytics" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium text-slate-600 dark:text-slate-300 relative">
+        <span class="nav-dot absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-brand-500"></span>
+        <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-6 3 3 5-8"/></svg>
+        Usage Analytics
+      </button>
+      <button data-target="focus" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium text-slate-600 dark:text-slate-300 relative">
+        <span class="nav-dot absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-brand-500"></span>
+        <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        Focus Mode
+      </button>
+
+      <p class="px-3 pt-4 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Intelligence</p>
+      <button data-target="predictions" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium text-slate-600 dark:text-slate-300 relative">
+        <span class="nav-dot absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-brand-500"></span>
+        <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a6 6 0 00-6 6c0 2.5 1.2 3.8 2 5 .6.9 1 1.4 1 2.5V17h6v-1.5c0-1.1.4-1.6 1-2.5.8-1.2 2-2.5 2-5a6 6 0 00-6-6z"/><path d="M9.5 21h5M10 17.5h4"/></svg>
+        AI Predictions
+        <span class="ml-auto text-[9.5px] font-bold px-1.5 py-0.5 rounded-md bg-mint-500/15 text-mint-500">NEW</span>
+      </button>
+
+      <p class="px-3 pt-4 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">System</p>
+      <button data-target="settings" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium text-slate-600 dark:text-slate-300 relative">
+        <span class="nav-dot absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-brand-500"></span>
+        <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.6-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.6V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.6 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.6 1z"/></svg>
+        Settings
+      </button>
+    </nav>
+
+    <!-- Profile / status -->
+    <div class="p-3 border-t border-slate-100 dark:border-white/5">
+      <div class="flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl bg-slate-50 dark:bg-white/[.03]">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-mint-400 opacity-60"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-mint-500"></span>
+        </span>
+        <div class="leading-tight">
+          <p class="text-[12.5px] font-semibold text-slate-700 dark:text-slate-200">Tracking active</p>
+          <p class="text-[11px] text-slate-400">Local-only · no cloud sync</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="flex-1 flex flex-col h-full overflow-hidden">
+
+    <!-- Topbar -->
+    <header class="h-16 shrink-0 flex items-center justify-between gap-4 px-6 border-b border-slate-200 dark:border-white/5 bg-white/80 dark:bg-[#0f1420]/80 backdrop-blur">
+      <div>
+        <h1 id="page-title" class="text-[17px] font-bold text-slate-900 dark:text-white leading-tight">Dashboard</h1>
+        <p id="page-subtitle" class="text-[12px] text-slate-400">Saturday, August 15 · Here's your day so far</p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-white/5 rounded-xl px-3 py-2 w-64">
+          <svg class="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+          <input id="global-search-input" type="text" placeholder="Search apps, settings..." class="bg-transparent outline-none text-[13px] w-full placeholder:text-slate-400" />
+        </div>
+
+        <button id="theme-toggle" class="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5">
+          <svg id="icon-sun" class="w-[18px] h-[18px] hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg id="icon-moon" class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg>
+        </button>
+
+        <button class="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 relative">
+          <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+          <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-coral-500 text-white text-[9px] font-bold flex items-center justify-center">3</span>
+        </button>
+
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white text-[13px] font-bold">HS</div>
+      </div>
+    </header>
+
+    <!-- Scroll area -->
+    <main class="flex-1 overflow-y-auto px-6 py-6">
+
+      <!-- ============================================================ -->
+      <!-- DASHBOARD -->
+      <!-- ============================================================ -->
+      <section id="panel-dashboard" class="section-panel" data-visible="true">
+
+        <!-- Stat cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-600 dark:text-brand-300">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+              </div>
+              <span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-mint-500/10 text-mint-500">-8% vs yesterday</span>
+            </div>
+            <p class="text-[12.5px] text-slate-400 font-medium">Today's Screen Time</p>
+            <p id="stat-total-time" class="text-[26px] font-mono font-bold text-slate-900 dark:text-white mt-0.5">5h 42m</p>
+          </div>
+
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-10 h-10 rounded-xl bg-mint-500/10 flex items-center justify-center text-mint-500">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </div>
+              <span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-mint-500/10 text-mint-500">+12% vs yesterday</span>
+            </div>
+            <p class="text-[12.5px] text-slate-400 font-medium">Productive Time</p>
+            <p id="stat-productive-time" class="text-[26px] font-mono font-bold text-slate-900 dark:text-white mt-0.5">3h 51m</p>
+          </div>
+
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+              </div>
+              <span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-300">Good</span>
+            </div>
+            <p class="text-[12.5px] text-slate-400 font-medium">Productivity Score</p>
+            <p class="text-[26px] font-mono font-bold text-slate-900 dark:text-white mt-0.5"><span id="stat-score">68</span><span class="text-[15px] text-slate-400">/100</span></p>
+          </div>
+
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-10 h-10 rounded-xl bg-coral-500/10 flex items-center justify-center text-coral-500">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 1.5"/></svg>
+              </div>
+              <span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-slate-100 dark:bg-white/5 text-slate-500">4 sessions</span>
+            </div>
+            <p class="text-[12.5px] text-slate-400 font-medium">Focus Sessions Today</p>
+            <p id="stat-focus-time" class="text-[26px] font-mono font-bold text-slate-900 dark:text-white mt-0.5">2h 00m</p>
+          </div>
+        </div>
+
+        <!-- Middle grid: trend chart + most used -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
+
+          <div class="xl:col-span-2 bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white">Weekly Usage Trend</h3>
+                <p class="text-[12px] text-slate-400">Productive vs. leisure time, last 7 days</p>
+              </div>
+              <div class="segmented flex text-[12px] font-medium bg-slate-100 dark:bg-white/5 rounded-lg p-1">
+                <button class="px-3 py-1 rounded-md bg-white dark:bg-brand-600 dark:text-white shadow-sm">Week</button>
+                <button class="px-3 py-1 rounded-md text-slate-500">Month</button>
+              </div>
+            </div>
+            <div class="h-64"><canvas id="chart-weekly-trend"></canvas></div>
+          </div>
+
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-1">Most Used Applications</h3>
+            <p class="text-[12px] text-slate-400 mb-4">Today's breakdown</p>
+            <div id="most-used-list" class="space-y-3.5"></div>
+          </div>
+        </div>
+
+        <!-- Bottom grid: category donut + productivity gauge -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Category Breakdown</h3>
+            <div class="h-52"><canvas id="chart-category-donut"></canvas></div>
+          </div>
+
+          <div class="xl:col-span-2 bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Application Usage Breakdown</h3>
+            <div class="h-52"><canvas id="chart-app-bars"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- APPLICATIONS -->
+      <!-- ============================================================ -->
+      <section id="panel-applications" class="section-panel">
+        <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card overflow-hidden">
+
+          <div class="p-5 flex flex-wrap items-center gap-3 border-b border-slate-100 dark:border-white/5">
+            <div class="flex items-center gap-2 bg-slate-100 dark:bg-white/5 rounded-xl px-3 py-2 flex-1 min-w-[220px]">
+              <svg class="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <input id="apps-search-input" type="text" placeholder="Search applications..." class="bg-transparent outline-none text-[13px] w-full placeholder:text-slate-400" />
+            </div>
+            <select id="apps-category-filter" class="text-[13px] bg-slate-100 dark:bg-white/5 rounded-xl px-3 py-2 outline-none">
+              <option value="">All Categories</option>
+              <option value="Development">Development</option>
+              <option value="Browsing">Browsing</option>
+              <option value="Communication">Communication</option>
+              <option value="Design">Design</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="Social">Social</option>
+            </select>
+            <select id="apps-status-filter" class="text-[13px] bg-slate-100 dark:bg-white/5 rounded-xl px-3 py-2 outline-none">
+              <option value="">All Status</option>
+              <option value="productive">Productive</option>
+              <option value="leisure">Leisure</option>
+              <option value="hidden">Hidden</option>
+            </select>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-[13px]">
+              <thead>
+                <tr class="text-left text-slate-400 text-[11.5px] uppercase tracking-wide border-b border-slate-100 dark:border-white/5">
+                  <th class="py-3 px-5 font-semibold">Application</th>
+                  <th class="py-3 px-5 font-semibold">Category</th>
+                  <th class="py-3 px-5 font-semibold">Today</th>
+                  <th class="py-3 px-5 font-semibold">Weekly Avg.</th>
+                  <th class="py-3 px-5 font-semibold">Daily Limit</th>
+                  <th class="py-3 px-5 font-semibold">Productive</th>
+                  <th class="py-3 px-5 font-semibold">Visible</th>
+                </tr>
+              </thead>
+              <tbody id="apps-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- ALERTS & LIMITS -->
+      <!-- ============================================================ -->
+      <section id="panel-alerts" class="section-panel">
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+          <div class="lg:col-span-2 bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white">Daily Screen Time Limit</h3>
+              <span id="alert-pct-badge" class="text-[11px] font-semibold px-2 py-1 rounded-full bg-amber-500/10 text-amber-500">78% used</span>
+            </div>
+            <p class="text-[12px] text-slate-400 mb-4">Overall goal across all tracked applications</p>
+
+            <div class="flex items-end justify-between mb-2">
+              <p class="font-mono text-[22px] font-bold text-slate-900 dark:text-white"><span id="alert-used-display">5h 42m</span> <span class="text-slate-400 text-[14px] font-sans font-medium">/ <span id="alert-limit-display">8h 00m</span></span></p>
+            </div>
+            <div class="h-2.5 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+              <div id="alert-progress-bar" class="h-full bg-gradient-to-r from-brand-500 to-amber-500 rounded-full" style="width:71%"></div>
+            </div>
+            <input id="alert-limit-slider" type="range" min="1" max="16" value="8" class="w-full mt-4" />
+            <div class="flex justify-between text-[11px] text-slate-400 mt-1"><span>1h</span><span>16h</span></div>
+          </div>
+
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Notification Channels</h3>
+            <div class="space-y-4" id="notif-toggles"></div>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card">
+          <div class="p-5 flex items-center justify-between border-b border-slate-100 dark:border-white/5">
+            <div>
+              <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white">Per-App Limits</h3>
+              <p class="text-[12px] text-slate-400">Set granular limits for individual applications</p>
+            </div>
+            <button id="add-limit-btn" class="text-[13px] font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl px-4 py-2">+ Add Limit</button>
+          </div>
+          <div id="app-limits-list" class="divide-y divide-slate-100 dark:divide-white/5"></div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- USAGE ANALYTICS -->
+      <!-- ============================================================ -->
+      <section id="panel-analytics" class="section-panel">
+
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div id="analytics-range-buttons" class="flex items-center gap-2 text-[13px]">
+            <button data-days="7" class="analytics-range-btn px-3 py-1.5 rounded-lg bg-brand-600 text-white font-semibold">7 Days</button>
+            <button data-days="30" class="analytics-range-btn px-3 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-500">30 Days</button>
+          </div>
+          <a id="analytics-export-btn" href="/api/analytics/export?days=7" class="flex items-center gap-2 text-[13px] font-semibold text-brand-600 dark:text-brand-300 border border-brand-200 dark:border-brand-500/30 rounded-xl px-3.5 py-2 hover:bg-brand-50 dark:hover:bg-brand-500/10">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+            Export Excel Report
+          </a>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+          <div class="xl:col-span-2 bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-1">Daily Trends</h3>
+            <p class="text-[12px] text-slate-400 mb-4">Total screen time vs productive time</p>
+            <div class="h-64"><canvas id="chart-daily-trends"></canvas></div>
+          </div>
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-1">Time of Day</h3>
+            <p class="text-[12px] text-slate-400 mb-4">When you're most active</p>
+            <div class="h-64"><canvas id="chart-time-of-day"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Week-over-Week</h3>
+            <div class="h-52"><canvas id="chart-wow"></canvas></div>
+          </div>
+
+          <div class="xl:col-span-2 bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Productivity Insights</h3>
+            <div id="insights-list" class="space-y-3"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- FOCUS MODE -->
+      <!-- ============================================================ -->
+      <section id="panel-focus" class="section-panel">
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+
+          <!-- Timer -->
+          <div class="xl:col-span-1 bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-6 flex flex-col items-center">
+            <div class="flex gap-1.5 mb-6 bg-slate-100 dark:bg-white/5 rounded-lg p-1 text-[12px] font-semibold">
+              <button class="preset-btn px-3 py-1.5 rounded-md bg-white dark:bg-brand-600 dark:text-white shadow-sm" data-mins="60">Deep Work</button>
+              <button class="preset-btn px-3 py-1.5 rounded-md text-slate-500" data-mins="25">Quick Task</button>
+              <button class="preset-btn px-3 py-1.5 rounded-md text-slate-500" data-mins="45">Reading</button>
+            </div>
+
+            <div class="relative w-56 h-56 mb-6">
+              <svg class="ring-timer w-56 h-56">
+                <circle cx="112" cy="112" r="100" stroke="currentColor" class="text-slate-100 dark:text-white/5" stroke-width="12" fill="none"/>
+                <circle id="timer-ring" cx="112" cy="112" r="100" stroke="url(#grad)" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="628" stroke-dashoffset="160"/>
+                <defs>
+                  <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#4a6cf7"/>
+                    <stop offset="100%" stop-color="#34d3ac"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <p id="timer-display" class="font-mono text-[38px] font-bold text-slate-900 dark:text-white">47:12</p>
+                <p id="timer-session-label" class="text-[12px] text-slate-400 font-medium">Deep Work session</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button id="timer-pause-btn" class="w-11 h-11 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h4v12H6zM14 6h4v12h-4z"/></svg>
+              </button>
+              <button id="timer-play-btn" class="w-14 h-14 rounded-full bg-brand-600 hover:bg-brand-700 flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+              <button id="timer-reset-btn" class="w-11 h-11 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 109-9M3 12l3-3M3 12l3 3"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Session history -->
+          <div class="xl:col-span-2 bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Focus Trends</h3>
+            <div class="h-40 mb-5"><canvas id="chart-focus-trend"></canvas></div>
+            <h4 class="text-[12.5px] font-semibold text-slate-400 uppercase tracking-wide mb-3">Session History</h4>
+            <div id="focus-history" class="space-y-2.5"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- AI PREDICTIONS -->
+      <!-- ============================================================ -->
+      <section id="panel-predictions" class="section-panel">
+        <div class="rounded-xl2 border border-brand-200 dark:border-brand-500/20 bg-gradient-to-br from-brand-50 to-white dark:from-brand-900/20 dark:to-[#111726] p-5 mb-4 flex items-start gap-4">
+          <div class="w-11 h-11 shrink-0 rounded-xl bg-brand-600 flex items-center justify-center text-white">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a6 6 0 00-6 6c0 2.5 1.2 3.8 2 5 .6.9 1 1.4 1 2.5V17h6v-1.5c0-1.1.4-1.6 1-2.5.8-1.2 2-2.5 2-5a6 6 0 00-6-6z"/></svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-[15px] text-slate-900 dark:text-white">AI Predictions <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-mint-500/15 text-mint-500 align-middle ml-1">Model connected via Flask API</span></h3>
+            <p class="text-[13px] text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">This panel is wired to call your Flask backend's <code class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-[12px]">/api/predict</code> endpoint, which will serve a model trained on your historical usage dataset. The cards below use placeholder data until the backend + model are connected.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <p class="text-[12.5px] text-slate-400 font-medium">Predicted Screen Time — Tomorrow</p>
+            <p id="pred-total-time" class="text-[26px] font-mono font-bold text-slate-900 dark:text-white mt-1">6h 15m</p>
+            <p id="pred-total-sub" class="text-[11.5px] text-amber-500 font-semibold mt-1">↑ 9% above your 7-day average</p>
+          </div>
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <p class="text-[12.5px] text-slate-400 font-medium">Predicted Productivity Score</p>
+            <p class="text-[26px] font-mono font-bold text-slate-900 dark:text-white mt-1"><span id="pred-score">64</span><span class="text-[15px] text-slate-400">/100</span></p>
+            <p id="pred-score-sub" class="text-[11.5px] text-coral-500 font-semibold mt-1">↓ 4pts vs today</p>
+          </div>
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <p class="text-[12.5px] text-slate-400 font-medium">Limit Breach Risk</p>
+            <p id="pred-risk-level" class="text-[26px] font-mono font-bold text-slate-900 dark:text-white mt-1">High</p>
+            <p id="pred-risk-sub" class="text-[11.5px] text-slate-400 mt-1">YouTube likely to exceed 1h limit</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div class="xl:col-span-2 bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-1">Forecast vs Actual</h3>
+            <p class="text-[12px] text-slate-400 mb-4">Model output for the next 7 days (placeholder series)</p>
+            <div class="h-64"><canvas id="chart-forecast"></canvas></div>
+          </div>
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Smart Recommendations</h3>
+            <div class="space-y-3" id="ai-recommendations"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- SETTINGS -->
+      <!-- ============================================================ -->
+      <section id="panel-settings" class="section-panel">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Appearance</h3>
+            <p class="text-[12.5px] text-slate-400 mb-2 font-medium">Theme mode</p>
+            <div class="flex gap-2 mb-5" id="theme-mode-buttons">
+              <button data-mode="light" class="theme-mode-btn flex-1 px-3 py-2.5 rounded-xl border-2 border-brand-500 bg-brand-50 dark:bg-brand-500/10 text-[13px] font-semibold text-brand-700 dark:text-brand-300">Light</button>
+              <button data-mode="dark" class="theme-mode-btn flex-1 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 text-[13px] font-semibold text-slate-500">Dark</button>
+              <button data-mode="system" class="theme-mode-btn flex-1 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 text-[13px] font-semibold text-slate-500">System</button>
+            </div>
+            <p class="text-[12.5px] text-slate-400 mb-2 font-medium">Accent color</p>
+            <div class="flex gap-2.5">
+              <button class="w-8 h-8 rounded-full bg-brand-600 ring-2 ring-offset-2 ring-brand-600 dark:ring-offset-[#111726]"></button>
+              <button class="w-8 h-8 rounded-full bg-mint-500"></button>
+              <button class="w-8 h-8 rounded-full bg-coral-500"></button>
+              <button class="w-8 h-8 rounded-full bg-amber-500"></button>
+              <button class="w-8 h-8 rounded-full bg-purple-500"></button>
+              <button class="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 dark:border-white/20 flex items-center justify-center text-slate-400 text-[16px] leading-none">+</button>
+            </div>
+          </div>
+
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Startup &amp; Tray</h3>
+            <div class="space-y-4" id="startup-toggles"></div>
+          </div>
+
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Language &amp; Region</h3>
+            <select id="language-select" class="w-full text-[13px] bg-slate-100 dark:bg-white/5 rounded-xl px-3 py-2.5 outline-none mb-4">
+              <option>English (United States)</option>
+              <option>Français</option>
+              <option>Deutsch</option>
+              <option>Español</option>
+              <option>हिंदी</option>
+              <option>日本語</option>
+            </select>
+            <p class="text-[12px] text-slate-400">Changes take effect after restarting the app.</p>
+          </div>
+
+          <div class="bg-white dark:bg-[#111726] rounded-xl2 border border-slate-200 dark:border-white/5 shadow-card p-5">
+            <h3 class="font-bold text-[14.5px] text-slate-900 dark:text-white mb-4">Data Management</h3>
+            <div class="grid grid-cols-2 gap-2.5">
+              <button class="text-[12.5px] font-semibold border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5">↓ Backup Data</button>
+              <button class="text-[12.5px] font-semibold border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5">↑ Restore Data</button>
+              <a href="/api/analytics/export?days=30" class="text-center text-[12.5px] font-semibold border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-white/5">Export Excel</a>
+              <button class="text-[12.5px] font-semibold border border-coral-200 dark:border-coral-500/30 text-coral-500 rounded-xl px-3 py-2.5 hover:bg-coral-50 dark:hover:bg-coral-500/10">Clear All Data</button>
+            </div>
+            <p class="text-[11.5px] text-slate-400 mt-3">Scolect v2.4.1 · All data stored locally</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   NAVIGATION
+============================================================ */
+const titles = {
+  dashboard: ["Dashboard", "Here's your day so far"],
+  applications: ["Applications", "Manage tracked apps and productivity tags"],
+  alerts: ["Alerts & Limits", "Set usage boundaries and notification rules"],
+  analytics: ["Usage Analytics", "Deep dive into your habits and trends"],
+  focus: ["Focus Mode", "Pomodoro sessions and focus history"],
+  predictions: ["AI Predictions", "Forecasts generated from your usage history"],
+  settings: ["Settings", "Customize appearance, data, and preferences"],
+};
+
+const todayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+
+function setPageHeader(target) {
+  document.getElementById('page-title').textContent = titles[target][0];
+  document.getElementById('page-subtitle').textContent =
+    target === 'dashboard' ? `${todayLabel} · ${titles[target][1]}` : titles[target][1];
+}
+setPageHeader('dashboard'); // fix the real date/day on initial load instead of the hardcoded "Saturday, August 15"
+
+document.querySelectorAll('#sidebar-nav [data-target]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#sidebar-nav [data-target]').forEach(b => b.dataset.active = "false");
+    btn.dataset.active = "true";
+    document.querySelectorAll('.section-panel').forEach(p => p.dataset.visible = "false");
+    document.getElementById('panel-' + btn.dataset.target).dataset.visible = "true";
+    setPageHeader(btn.dataset.target);
+  });
+});
+
+/* ============================================================
+   THEME TOGGLE — moved to static/js/api-connect.js so it stays in
+   sync with the Settings panel and persists via the backend instead
+   of being purely in-memory / disconnected from Settings.
+============================================================ */
+
+/* ============================================================
+   TOGGLE SWITCH COMPONENT (generates markup)
+============================================================ */
+function toggleRow(label, sub, checked=true) {
+  return `
+  <div class="flex items-center justify-between">
+    <div>
+      <p class="text-[13px] font-semibold text-slate-700 dark:text-slate-200">${label}</p>
+      ${sub ? `<p class="text-[11.5px] text-slate-400">${sub}</p>` : ''}
+    </div>
+    <button class="toggle-switch w-11 h-6 rounded-full ${checked ? 'bg-brand-600' : 'bg-slate-200 dark:bg-white/10'} relative toggle-track" data-checked="${checked}">
+      <span class="toggle-dot absolute top-0.5 ${checked ? 'translate-x-[22px]' : 'translate-x-0.5'} w-5 h-5 rounded-full bg-white shadow"></span>
+    </button>
+  </div>`;
+}
+
+function wireToggles(container) {
+  container.querySelectorAll('.toggle-switch').forEach(t => {
+    t.addEventListener('click', () => {
+      const checked = t.dataset.checked === 'true';
+      t.dataset.checked = (!checked).toString();
+      t.classList.toggle('bg-brand-600', !checked);
+      t.classList.toggle('bg-slate-200', checked);
+      t.classList.toggle('dark:bg-white/10', checked);
+      const dot = t.querySelector('.toggle-dot');
+      dot.classList.toggle('translate-x-[22px]', !checked);
+      dot.classList.toggle('translate-x-0.5', checked);
+    });
+  });
+}
+
+document.getElementById('notif-toggles').innerHTML =
+  toggleRow('Pop-up Alerts', 'Show in-app when limit is near', true) +
+  toggleRow('System Notifications', 'OS-level notifications', true) +
+  toggleRow('Sound Alerts', 'Play a sound when limit is hit', false);
+wireToggles(document.getElementById('notif-toggles'));
+
+document.getElementById('startup-toggles').innerHTML =
+  toggleRow('Launch at Startup', 'Start Scolect when your computer boots', true) +
+  toggleRow('Launch Minimized', 'Open directly to system tray', true) +
+  toggleRow('Minimize to Tray', 'Keep running in background when closed', true) +
+  toggleRow('Idle Detection', 'Pause tracking after 5 min inactivity', true);
+wireToggles(document.getElementById('startup-toggles'));
+
+/* ============================================================
+   MOCK DATA
+============================================================ */
+const apps = [
+  { name: 'Visual Studio Code', cat: 'Development', color: '#4a6cf7', today: '2h 18m', avg: '2h 05m', limit: 'No limit', productive: true, visible: true },
+  { name: 'Google Chrome', cat: 'Browsing', color: '#f59e0b', today: '1h 42m', avg: '2h 30m', limit: '3h 00m', productive: false, visible: true },
+  { name: 'Slack', cat: 'Communication', color: '#1fb894', today: '52m', avg: '1h 10m', limit: 'No limit', productive: true, visible: true },
+  { name: 'Figma', cat: 'Design', color: '#f65e4a', today: '38m', avg: '45m', limit: 'No limit', productive: true, visible: true },
+  { name: 'YouTube', cat: 'Entertainment', color: '#ef4444', today: '46m', avg: '1h 20m', limit: '1h 00m', productive: false, visible: true },
+  { name: 'Spotify', cat: 'Entertainment', color: '#22c55e', today: '3h 05m', avg: '2h 40m', limit: 'No limit', productive: false, visible: true },
+  { name: 'Discord', cat: 'Social', color: '#818cf8', today: '25m', avg: '55m', limit: '45m', productive: false, visible: false },
+];
+
+const mostUsedIcons = ['💻','🌐','💬','🎧'];
+const mostUsedEl = document.getElementById('most-used-list');
+apps.slice(0,4).forEach((a,i) => {
+  mostUsedEl.innerHTML += `
+  <div class="flex items-center gap-3">
+    <div class="w-9 h-9 rounded-lg flex items-center justify-center text-[15px]" style="background:${a.color}22">${mostUsedIcons[i]}</div>
+    <div class="flex-1 min-w-0">
+      <div class="flex justify-between text-[12.5px] font-semibold text-slate-700 dark:text-slate-200">
+        <span class="truncate">${a.name}</span><span class="font-mono text-slate-400">${a.today}</span>
+      </div>
+      <div class="h-1.5 bg-slate-100 dark:bg-white/5 rounded-full mt-1.5 overflow-hidden">
+        <div class="h-full rounded-full" style="width:${60 - i*12}%; background:${a.color}"></div>
+      </div>
+    </div>
+  </div>`;
+});
+
+const appsBody = document.getElementById('apps-table-body');
+apps.forEach(a => {
+  appsBody.innerHTML += `
+  <tr class="app-row border-b border-slate-50 dark:border-white/5 last:border-0">
+    <td class="py-3.5 px-5">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg" style="background:${a.color}22"></div>
+        <span class="font-semibold text-slate-700 dark:text-slate-200">${a.name}</span>
+      </div>
+    </td>
+    <td class="py-3.5 px-5"><span class="text-[11.5px] font-semibold px-2 py-1 rounded-full" style="background:${a.color}18;color:${a.color}">${a.cat}</span></td>
+    <td class="py-3.5 px-5 font-mono text-slate-600 dark:text-slate-300">${a.today}</td>
+    <td class="py-3.5 px-5 font-mono text-slate-400">${a.avg}</td>
+    <td class="py-3.5 px-5 text-slate-500 dark:text-slate-400">${a.limit}</td>
+    <td class="py-3.5 px-5">${miniToggle(a.productive)}</td>
+    <td class="py-3.5 px-5">${miniToggle(a.visible)}</td>
+  </tr>`;
+});
+function miniToggle(checked) {
+  return `<button class="toggle-switch w-9 h-5 rounded-full ${checked ? 'bg-brand-600' : 'bg-slate-200 dark:bg-white/10'} relative toggle-track" data-checked="${checked}">
+    <span class="toggle-dot absolute top-0.5 ${checked ? 'translate-x-[18px]' : 'translate-x-0.5'} w-4 h-4 rounded-full bg-white shadow"></span>
+  </button>`;
+}
+wireToggles(appsBody);
+
+// per-app limits panel (alerts page)
+const limitsEl = document.getElementById('app-limits-list');
+apps.filter(a => a.limit !== 'No limit').forEach(a => {
+  limitsEl.innerHTML += `
+  <div class="flex items-center justify-between px-5 py-4">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg" style="background:${a.color}22"></div>
+      <div>
+        <p class="text-[13.5px] font-semibold text-slate-700 dark:text-slate-200">${a.name}</p>
+        <p class="text-[11.5px] text-slate-400">Limit: ${a.limit} · Used today: ${a.today}</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-mint-500/10 text-mint-500">On track</span>
+      <button class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+      </button>
+    </div>
+  </div>`;
+});
+
+// insights
+const insights = [
+  { icon: '🎯', text: 'Excellent Productivity: 68% of your screen time this week was productive work.' },
+  { icon: '⏰', text: "Your most active time is around 3 PM — consider scheduling deep work then." },
+  { icon: '🎮', text: 'Consider setting an app limit on Spotify — usage is up 22% week-over-week.' },
+  { icon: '📈', text: 'Focus session completion rate improved to 91%, up from 76% last week.' },
+];
+const insightsEl = document.getElementById('insights-list');
+insights.forEach(i => {
+  insightsEl.innerHTML += `
+  <div class="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-white/[.03]">
+    <span class="text-[18px] leading-none">${i.icon}</span>
+    <p class="text-[13px] text-slate-600 dark:text-slate-300 leading-relaxed">${i.text}</p>
+  </div>`;
+});
+
+// focus history
+const focusSessions = [
+  { label: 'Deep Work', time: '9:00 AM – 10:00 AM', dur: '60 min', done: true },
+  { label: 'Quick Task', time: '11:15 AM – 11:40 AM', dur: '25 min', done: true },
+  { label: 'Reading', time: '2:00 PM – 2:45 PM', dur: '45 min', done: true },
+  { label: 'Deep Work', time: '4:00 PM – 4:35 PM', dur: '35 / 60 min', done: false },
+];
+const focusEl = document.getElementById('focus-history');
+focusSessions.forEach(s => {
+  focusEl.innerHTML += `
+  <div class="flex items-center justify-between py-2">
+    <div class="flex items-center gap-3">
+      <div class="w-2 h-2 rounded-full ${s.done ? 'bg-mint-500' : 'bg-amber-500'}"></div>
+      <div>
+        <p class="text-[13px] font-semibold text-slate-700 dark:text-slate-200">${s.label}</p>
+        <p class="text-[11.5px] text-slate-400">${s.time}</p>
+      </div>
+    </div>
+    <span class="font-mono text-[12.5px] text-slate-500 dark:text-slate-400">${s.dur}</span>
+  </div>`;
+});
+
+// AI recommendations
+const recs = [
+  { icon: '⚠️', text: 'Enable a hard limit on YouTube — you\'re on pace to exceed it by 6:30 PM.' },
+  { icon: '🕐', text: 'Your model-predicted peak distraction window is 8–10 PM. Consider Focus Mode then.' },
+  { icon: '✅', text: 'Productive time is trending up 12% week-over-week — keep the current routine.' },
+];
+const recsEl = document.getElementById('ai-recommendations');
+recs.forEach(r => {
+  recsEl.innerHTML += `
+  <div class="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-white/[.03]">
+    <span class="text-[16px] leading-none">${r.icon}</span>
+    <p class="text-[12.5px] text-slate-600 dark:text-slate-300 leading-relaxed">${r.text}</p>
+  </div>`;
+});
+
+/* ============================================================
+   PRESET BUTTONS (Focus Mode)
+============================================================ */
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.preset-btn').forEach(b => {
+      b.classList.remove('bg-white', 'dark:bg-brand-600', 'dark:text-white', 'shadow-sm');
+      b.classList.add('text-slate-500');
+    });
+    btn.classList.add('bg-white', 'dark:bg-brand-600', 'dark:text-white', 'shadow-sm');
+    btn.classList.remove('text-slate-500');
+  });
+});
+
+/* ============================================================
+   CHARTS
+============================================================ */
+function initDashboardCharts() {
+const gridColor = 'rgba(120,130,160,.12)';
+Chart.defaults.font.family = 'Inter';
+Chart.defaults.font.size = 11.5;
+Chart.defaults.color = '#94a3b8';
+
+// Weekly trend (stacked bar)
+window.weeklyTrendChart = new Chart(document.getElementById('chart-weekly-trend'), {
+  type: 'bar',
+  data: {
+    labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    datasets: [
+      { label: 'Productive', data: [3.2,3.8,2.9,4.1,3.5,1.8,1.2], backgroundColor: '#4a6cf7', borderRadius: 6, maxBarThickness: 22 },
+      { label: 'Leisure', data: [1.5,1.2,2.1,1.4,2.3,3.6,2.9], backgroundColor: '#e2e8f0', borderRadius: 6, maxBarThickness: 22 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } },
+    scales: {
+      x: { stacked: true, grid: { display: false } },
+      y: { stacked: true, grid: { color: gridColor }, ticks: { callback: v => v + 'h' } }
+    }
+  }
+});
+
+// Category donut
+window.categoryDonutChart = new Chart(document.getElementById('chart-category-donut'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Development','Entertainment','Communication','Browsing','Design','Social'],
+    datasets: [{ data: [32, 24, 15, 14, 9, 6], backgroundColor: ['#4a6cf7','#ef4444','#1fb894','#f59e0b','#f65e4a','#818cf8'], borderWidth: 0 }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, cutout: '68%',
+    plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 7, padding: 10, font: {size: 10.5} } } }
+  }
+});
+
+// App usage bars (horizontal)
+window.appBarsChart = new Chart(document.getElementById('chart-app-bars'), {
+  type: 'bar',
+  data: {
+    labels: apps.map(a=>a.name),
+    datasets: [{ data: [138,102,52,38,46,185,25], backgroundColor: apps.map(a=>a.color), borderRadius: 6, maxBarThickness: 16 }]
+  },
+  options: {
+    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { x: { grid: { color: gridColor }, ticks: { callback: v => v+'m' } }, y: { grid: { display: false } } }
+  }
+});
+
+// Daily trends (line)
+window.dailyTrendsChart = new Chart(document.getElementById('chart-daily-trends'), {
+  type: 'line',
+  data: {
+    labels: ['Aug 9','Aug 10','Aug 11','Aug 12','Aug 13','Aug 14','Aug 15'],
+    datasets: [
+      { label: 'Total', data: [6.1,5.4,7.2,6.8,5.9,7.8,5.7], borderColor: '#94a3b8', backgroundColor: 'transparent', tension: .4, pointRadius: 3 },
+      { label: 'Productive', data: [3.4,3.1,4.0,4.5,3.2,2.1,3.85], borderColor: '#4a6cf7', backgroundColor: 'rgba(74,108,247,.08)', fill: true, tension: .4, pointRadius: 3 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } },
+    scales: { x: { grid: { display: false } }, y: { grid: { color: gridColor }, ticks: { callback: v => v+'h' } } }
+  }
+});
+
+// Time of day (polar/bar)
+window.timeOfDayChart = new Chart(document.getElementById('chart-time-of-day'), {
+  type: 'bar',
+  data: {
+    labels: ['Morning','Afternoon','Evening','Night'],
+    datasets: [{ data: [1.4, 2.6, 3.1, 0.6], backgroundColor: ['#fbbf24','#4a6cf7','#f65e4a','#334155'], borderRadius: 8, maxBarThickness: 34 }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { x: { grid: { display: false } }, y: { grid: { color: gridColor }, ticks: { callback: v => v+'h' } } }
+  }
+});
+
+// Week over week
+window.wowChart = new Chart(document.getElementById('chart-wow'), {
+  type: 'line',
+  data: {
+    labels: ['W1','W2','W3','W4'],
+    datasets: [
+      { label: 'This month', data: [34,31,29,27], borderColor: '#4a6cf7', backgroundColor: 'rgba(74,108,247,.1)', fill: true, tension: .4 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { x: { grid: { display: false } }, y: { grid: { color: gridColor }, ticks: { callback: v=>v+'h' } } }
+  }
+});
+
+// Focus trend
+window.focusTrendChart = new Chart(document.getElementById('chart-focus-trend'), {
+  type: 'bar',
+  data: {
+    labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+    datasets: [{ data: [3,2,4,3,5,1,2], backgroundColor: '#1fb894', borderRadius: 6, maxBarThickness: 24 }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { x: { grid: { display: false } }, y: { grid: { color: gridColor }, ticks: { stepSize: 1, callback: v=>v+' sess.' } } }
+  }
+});
+
+// AI forecast (placeholder model output — replaced with live predictions by api-connect.js)
+window.forecastChart = new Chart(document.getElementById('chart-forecast'), {
+  type: 'line',
+  data: {
+    labels: ['Today','+1','+2','+3','+4','+5','+6'],
+    datasets: [
+      { label: 'Actual', data: [5.7, null, null, null, null, null, null], borderColor: '#4a6cf7', backgroundColor: '#4a6cf7', pointRadius: 5, showLine: false },
+      { label: 'Predicted', data: [5.7, 6.25, 6.6, 5.9, 6.1, 7.2, 5.4], borderColor: '#1fb894', borderDash: [6,4], backgroundColor: 'rgba(31,184,148,.08)', fill: true, tension: .4, pointRadius: 3 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } },
+    scales: { x: { grid: { display: false } }, y: { grid: { color: gridColor }, ticks: { callback: v=>v+'h' } } }
+  }
+});
+}
+
+// Chart.js loads from a CDN, so don't assume it's ready the instant this
+// script runs — retry briefly if the library hasn't attached to window yet
+// (e.g. a slow network) before giving up.
+(function bootCharts(attemptsLeft) {
+  if (typeof Chart !== 'undefined') {
+    initDashboardCharts();
+  } else if (attemptsLeft > 0) {
+    setTimeout(() => bootCharts(attemptsLeft - 1), 200);
+  } else {
+    console.error('Chart.js failed to load from the CDN — charts will not render. Check your network/ad-blocker.');
+  }
+})(25);
+</script>
+<script src="{{ url_for('static', filename='js/api-connect.js') }}"></script>
+</body>
+</html>
