@@ -10,6 +10,7 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 
 
 class Config:
+    SECRET_KEY = os.environ.get("SECRET_KEY", "change-this-development-secret")
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{DB_PATH}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JSON_SORT_KEYS = False

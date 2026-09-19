@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect, request, session, url_for
 from flask_cors import CORS
 
 from config import Config
@@ -19,6 +19,9 @@ def create_app():
     from routes.focus import focus_bp
     from routes.settings import settings_bp
     from routes.predictions import predictions_bp
+    from routes.auth import auth_bp
+
+    app.register_blueprint(auth_bp)
 
     for bp in (
         dashboard_bp,
@@ -30,6 +33,21 @@ def create_app():
         predictions_bp,
     ):
         app.register_blueprint(bp)
+
+    @app.before_request
+    def require_authentication():
+        public_paths = {"/login", "/register", "/health"}
+        if (
+            request.path in public_paths
+            or request.path.startswith("/static/")
+            or request.path.startswith("/api/auth/")
+        ):
+            return None
+        if not session.get("user_id"):
+            if request.path.startswith("/api/"):
+                return {"error": "Authentication required."}, 401
+            return redirect(url_for("auth.login"))
+        return None
 
     @app.route("/")
     def index():

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign in | AI Digital Wellbeing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body
+    class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-5 py-10"
+  >
+    <main class="w-full max-w-md">
+      <div class="mb-8 text-center">
+        <div
+          class="mx-auto mb-4 h-12 w-12 rounded-2xl bg-blue-500 flex items-center justify-center text-2xl font-bold"
+        >
+          +
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight">Welcome back</h1>
+        <p class="mt-2 text-sm text-slate-400">
+          Sign in to continue to your wellbeing dashboard.
+        </p>
+      </div>
+
+      <form
+        method="post"
+        action="{{ url_for('auth.login') }}"
+        class="rounded-2xl border border-white/10 bg-white/[.06] p-6 shadow-2xl"
+      >
+        {% if error %}
+        <div
+          class="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200"
+        >
+          {{ error }}
+        </div>
+        {% endif %}
+
+        <label class="block text-sm font-medium text-slate-300" for="identifier"
+          >Username or email</label
+        >
+        <input
+          id="identifier"
+          name="identifier"
+          type="text"
+          autocomplete="username"
+          required
+          autofocus
+          class="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm outline-none transition focus:border-blue-400"
+          placeholder="your username or email"
+        />
+
+        <label
+          class="mt-5 block text-sm font-medium text-slate-300"
+          for="password"
+          >Password</label
+        >
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          class="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm outline-none transition focus:border-blue-400"
+          placeholder="Your password"
+        />
+
+        <button
+          type="submit"
+          class="mt-6 w-full rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
+        >
+          Sign in
+        </button>
+        <p class="mt-5 text-center text-sm text-slate-400">
+          New here?
+          <a
+            class="font-semibold text-blue-300 hover:text-blue-200"
+            href="{{ url_for('auth.register') }}"
+            >Create an account</a
+          >
+        </p>
+      </form>
+    </main>
+  </body>
+</html>
