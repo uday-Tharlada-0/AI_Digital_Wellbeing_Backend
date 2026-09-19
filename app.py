@@ -1,4 +1,5 @@
 from flask import Flask, render_template, redirect, request, session, url_for
+from models import OnboardingProfile
 from flask_cors import CORS
 
 from config import Config
@@ -51,6 +52,8 @@ def create_app():
 
     @app.route("/")
     def index():
+        if not OnboardingProfile.query.filter_by(user_id=session["user_id"]).first():
+            return redirect(url_for("auth.onboarding"))
         return render_template("index.html")
 
     @app.route("/health")

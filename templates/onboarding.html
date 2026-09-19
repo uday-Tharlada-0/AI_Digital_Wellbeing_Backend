@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Personalize your wellbeing | AI Digital Wellbeing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen bg-slate-950 px-5 py-10 text-slate-100">
+    <main class="mx-auto max-w-3xl">
+      <header class="mb-8">
+        <p
+          class="text-sm font-semibold uppercase tracking-[0.2em] text-blue-300"
+        >
+          First-time setup
+        </p>
+        <h1 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+          Tell us about your digital day
+        </h1>
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+          These answers create your starting profile and help the prediction
+          model understand your habits. You can change limits later.
+        </p>
+      </header>
+
+      <form
+        method="post"
+        action="{{ url_for('auth.onboarding') }}"
+        class="space-y-6"
+      >
+        {% if error %}
+        <div
+          class="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200"
+        >
+          {{ error }}
+        </div>
+        {% endif %}
+
+        <section class="rounded-2xl border border-white/10 bg-white/[.06] p-6">
+          <h2 class="text-lg font-semibold">Your daily baseline</h2>
+          <p class="mt-1 text-sm text-slate-400">
+            Use approximate minutes. Honest estimates are more useful than
+            perfect numbers.
+          </p>
+          <div class="mt-5 grid gap-5 sm:grid-cols-3">
+            <label class="text-sm text-slate-300"
+              >Total screen time (minutes)
+              <input
+                name="daily_screen_minutes"
+                type="number"
+                min="0"
+                max="1440"
+                required
+                value="{{ profile.daily_screen_minutes if profile else 360 }}"
+                class="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-3 outline-none focus:border-blue-400"
+              />
+            </label>
+            <label class="text-sm text-slate-300"
+              >Productive time (minutes)
+              <input
+                name="productive_minutes"
+                type="number"
+                min="0"
+                max="1440"
+                required
+                value="{{ profile.productive_minutes if profile else 180 }}"
+                class="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-3 outline-none focus:border-blue-400"
+              />
+            </label>
+            <label class="text-sm text-slate-300"
+              >Focus time (minutes)
+              <input
+                name="focus_minutes"
+                type="number"
+                min="0"
+                max="1440"
+                required
+                value="{{ profile.focus_minutes if profile else 60 }}"
+                class="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-3 outline-none focus:border-blue-400"
+              />
+            </label>
+          </div>
+          <div class="mt-5 grid gap-5 sm:grid-cols-2">
+            <label class="text-sm text-slate-300"
+              >When are you most active?
+              <select
+                name="active_period"
+                class="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-3 outline-none focus:border-blue-400"
+              >
+                {% for value, label in [('morning', 'Morning'), ('afternoon',
+                'Afternoon'), ('evening', 'Evening'), ('night', 'Night')] %}
+                <option
+                  value="{{ value }}"
+                  {%
+                  if
+                  profile
+                  and
+                  profile.active_period
+                  is
+                  sameas(value)
+                  %}selected{%
+                  endif
+                  %}
+                >
+                  {{ label }}
+                </option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="text-sm text-slate-300"
+              >What is your main goal?
+              <select
+                name="goal"
+                class="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-3 outline-none focus:border-blue-400"
+              >
+                {% for value, label in [('focus', 'Improve focus'), ('balance',
+                'Balance screen time'), ('productivity', 'Increase
+                productivity'), ('reduce', 'Reduce leisure usage')] %}
+                <option
+                  value="{{ value }}"
+                  {%
+                  if
+                  profile
+                  and
+                  profile.goal
+                  is
+                  sameas(value)
+                  %}selected{%
+                  endif
+                  %}
+                >
+                  {{ label }}
+                </option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="rounded-2xl border border-white/10 bg-white/[.06] p-6">
+          <h2 class="text-lg font-semibold">Applications you use</h2>
+          <p class="mt-1 text-sm text-slate-400">
+            Enter average daily usage. Leave a limit blank if you do not want
+            one.
+          </p>
+          <div class="mt-5 divide-y divide-white/10">
+            {% for app in apps %} {% set app_key = app.id if app.id is defined
+            else app.name %} {% set saved_usage =
+            profile.app_usage.get(app_key|string, 0) if profile else 0 %} {% set
+            saved_limit = profile.app_limits.get(app_key|string, '') if profile
+            else '' %}
+            <div
+              class="grid gap-3 py-4 sm:grid-cols-[1fr_150px_150px] sm:items-center"
+            >
+              <div>
+                <p class="font-medium">
+                  {{ app.name if app.name is defined else app['name'] }}
+                </p>
+                <p class="text-xs text-slate-500">
+                  {{ app.category if app.category is defined else
+                  app['category'] }}
+                </p>
+              </div>
+              <label class="text-xs text-slate-400"
+                >Usage (minutes)
+                <input
+                  name="usage_{{ app_key }}"
+                  type="number"
+                  min="0"
+                  max="1440"
+                  step="0.5"
+                  value="{{ saved_usage }}"
+                  class="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-400"
+                />
+              </label>
+              <label class="text-xs text-slate-400"
+                >Daily limit (optional)
+                <input
+                  name="limit_{{ app_key }}"
+                  type="number"
+                  min="1"
+                  max="1440"
+                  value="{{ saved_limit }}"
+                  class="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-400"
+                />
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        <button
+          type="submit"
+          class="w-full rounded-xl bg-blue-500 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-blue-400"
+        >
+          Save my answers and open dashboard
+        </button>
+      </form>
+    </main>
+  </body>
+</html>

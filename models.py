@@ -28,6 +28,22 @@ class User(db.Model):
         }
 
 
+class OnboardingProfile(db.Model):
+    __tablename__ = "onboarding_profiles"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, unique=True)
+    daily_screen_minutes = db.Column(db.Integer, nullable=False)
+    productive_minutes = db.Column(db.Integer, nullable=False)
+    focus_minutes = db.Column(db.Integer, nullable=False)
+    active_period = db.Column(db.String(30), nullable=False)
+    goal = db.Column(db.String(40), nullable=False)
+    app_usage = db.Column(db.JSON, nullable=False, default=dict)
+    app_limits = db.Column(db.JSON, nullable=False, default=dict)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Application(db.Model):
     __tablename__ = "applications"
 
