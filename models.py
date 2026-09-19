@@ -44,6 +44,30 @@ class OnboardingProfile(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ActivityEvent(db.Model):
+    __tablename__ = "activity_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    source = db.Column(db.String(40), nullable=False, default="activitywatch")
+    source_event_id = db.Column(db.String(255), nullable=False)
+    application_name = db.Column(db.String(120), nullable=False)
+    website = db.Column(db.String(500), nullable=True)
+    category = db.Column(db.String(60), nullable=False, default="Uncategorized")
+    is_productive = db.Column(db.Boolean, nullable=False, default=False)
+    user_category = db.Column(db.String(60), nullable=True)
+    purpose = db.Column(db.String(120), nullable=True)
+    classification_source = db.Column(db.String(20), nullable=False, default="automatic")
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    duration_seconds = db.Column(db.Float, nullable=False, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "source", "source_event_id", name="uq_activity_source_event"),
+    )
+
+
 class Application(db.Model):
     __tablename__ = "applications"
 

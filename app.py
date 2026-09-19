@@ -1,4 +1,5 @@
 from flask import Flask, render_template, redirect, request, session, url_for
+from sqlalchemy import inspect, text
 from models import OnboardingProfile
 from flask_cors import CORS
 
@@ -21,8 +22,10 @@ def create_app():
     from routes.settings import settings_bp
     from routes.predictions import predictions_bp
     from routes.auth import auth_bp
+    from routes.activity import activity_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(activity_bp)
 
     for bp in (
         dashboard_bp,
@@ -62,6 +65,15 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        activity_columns = {column["name"] for column in inspect(db.engine).get_columns("activity_events")}
+        for column_name, column_type in (
+            ("user_category", "VARCHAR(60)"),
+            ("purpose", "VARCHAR(120)"),
+            ("classification_source", "VARCHAR(20) NOT NULL DEFAULT 'automatic'"),
+        ):
+            if column_name not in activity_columns:
+                db.session.execute(text(f"ALTER TABLE activity_events ADD COLUMN {column_name} {column_type}"))
+        db.session.commit()
 
     return app
 

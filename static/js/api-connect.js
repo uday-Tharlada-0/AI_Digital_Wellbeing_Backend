@@ -24,6 +24,18 @@
     return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
   }
 
+  function updateChangeBadge(id, value, lowerIsBetter = false) {
+    const badge = $(id);
+    if (!badge) return;
+    const change = Number(value || 0);
+    const sign = change >= 0 ? '+' : '';
+    badge.textContent = `${sign}${change}% vs yesterday`;
+    const positive = lowerIsBetter ? change <= 0 : change >= 0;
+    badge.className = `text-[11px] font-semibold px-2 py-1 rounded-full ${
+      positive ? 'bg-mint-500/10 text-mint-500' : 'bg-coral-500/10 text-coral-500'
+    }`;
+  }
+
   /* ============================================================
      DASHBOARD
   ============================================================ */
@@ -34,6 +46,15 @@
     if ($('stat-productive-time')) $('stat-productive-time').textContent = data.productive_time.display;
     if ($('stat-score')) $('stat-score').textContent = data.productivity_score;
     if ($('stat-focus-time')) $('stat-focus-time').textContent = data.focus_sessions_today.display;
+    updateChangeBadge('stat-total-change', data.total_screen_time.pct_change_vs_yesterday, true);
+    updateChangeBadge('stat-productive-change', data.productive_time.pct_change_vs_yesterday);
+    if ($('stat-score-label')) {
+      const score = Number(data.productivity_score || 0);
+      $('stat-score-label').textContent = score >= 70 ? 'Excellent' : score >= 50 ? 'Good' : 'Needs attention';
+    }
+    if ($('stat-focus-count')) {
+      $('stat-focus-count').textContent = `${data.focus_sessions_today.count} sessions`;
+    }
 
     const mostUsed = $('most-used-list');
     if (mostUsed && data.most_used_applications.length) {
@@ -599,6 +620,83 @@
         });
       });
     }
+
+    if ($('activitywatch-sync-btn')) {
+      $('activitywatch-sync-btn').addEventListener('click', async () => {
+        const button = $('activitywatch-sync-btn');
+        const status = $('activitywatch-sync-status');
+        button.disabled = true;
+        button.textContent = 'Syncing...';
+        status.textContent = 'Connecting to ActivityWatch at localhost:5600...';
+        try {
+          const result = await getJSON('/api/activity/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base_url: 'http://localhost:5600' }),
+          });
+          status.textContent = result.browser_watcher
+            ? `Imported ${result.added} events, including browser websites.`
+            : `Imported ${result.added} events. Install the ActivityWatch browser watcher to see websites inside Chrome or Edge.`;
+          await loadDashboard();
+          await loadApplications();
+          await loadAlerts();
+          await loadAnalytics();
+          await loadPredictions();
+          await loadActivityReview();
+        } catch (error) {
+          status.textContent = 'ActivityWatch was not available. Start it locally and try again.';
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Sync ActivityWatch';
+        }
+      });
+    }
+  }
+
+  async function loadActivityReview() {
+    const list = $('activity-review-list');
+    const count = $('activity-review-count');
+    if (!list || !count) return;
+    const events = await getJSON('/api/activity/review');
+    count.textContent = `${events.length} to review`;
+    if (!events.length) {
+      list.innerHTML = '<p class="text-[12px] text-slate-400">Nothing needs review right now.</p>';
+      return;
+    }
+    const categories = ['Development', 'Study', 'Work', 'Communication', 'Entertainment', 'Design', 'Browsing', 'Personal', 'Other'];
+    list.innerHTML = events.map((event) => `
+      <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/[.03]" data-review-id="${event.id}">
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="truncate text-[12.5px] font-semibold text-slate-700 dark:text-slate-200">${event.application_name}</p>
+            <p class="text-[11px] text-slate-400">${event.duration_minutes} min across ${event.event_count} events · detected as ${event.detected_category}</p>
+          </div>
+          <button class="review-save-btn rounded-lg bg-brand-600 px-2.5 py-1.5 text-[11px] font-semibold text-white" data-review-save="${event.id}">Save</button>
+        </div>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <select data-review-category="${event.id}" class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] dark:border-white/10 dark:bg-slate-900">
+            ${categories.map((category) => `<option value="${category}" ${category === event.detected_category ? 'selected' : ''}>${category}</option>`).join('')}
+          </select>
+          <input data-review-purpose="${event.id}" class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] dark:border-white/10 dark:bg-slate-900" placeholder="Purpose, e.g. coding" />
+        </div>
+      </div>`).join('');
+
+    list.querySelectorAll('[data-review-save]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const id = button.dataset.reviewSave;
+        await getJSON(`/api/activity/events/${id}/classify`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            category: list.querySelector(`[data-review-category="${id}"]`).value,
+            purpose: list.querySelector(`[data-review-purpose="${id}"]`).value,
+          }),
+        });
+        await loadActivityReview();
+        await loadDashboard();
+        await loadAnalytics();
+      });
+    });
   }
 
   /* ============================================================
@@ -704,5 +802,6 @@
 
     wireSettingsControls();
     loadSettings().catch((e) => console.warn('Settings live-data unavailable:', e.message));
+    loadActivityReview().catch((e) => console.warn('Activity review unavailable:', e.message));
   });
 })();
