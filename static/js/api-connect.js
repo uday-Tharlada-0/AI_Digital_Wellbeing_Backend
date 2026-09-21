@@ -635,8 +635,8 @@
             body: JSON.stringify({ base_url: 'http://localhost:5600' }),
           });
           status.textContent = result.browser_watcher
-            ? `Imported ${result.added} events, including browser websites.`
-            : `Imported ${result.added} events. Install the ActivityWatch browser watcher to see websites inside Chrome or Edge.`;
+            ? `Imported ${result.added} events: ${result.window_events} apps and ${result.web_events} websites.`
+            : `Imported ${result.added} app events. No aw-watcher-web bucket was found yet.`;
           await loadDashboard();
           await loadApplications();
           await loadAlerts();
@@ -673,11 +673,15 @@
           </div>
           <button class="review-save-btn rounded-lg bg-brand-600 px-2.5 py-1.5 text-[11px] font-semibold text-white" data-review-save="${event.id}">Save</button>
         </div>
-        <div class="mt-2 grid grid-cols-2 gap-2">
+        <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
           <select data-review-category="${event.id}" class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] dark:border-white/10 dark:bg-slate-900">
             ${categories.map((category) => `<option value="${category}" ${category === event.detected_category ? 'selected' : ''}>${category}</option>`).join('')}
           </select>
           <input data-review-purpose="${event.id}" class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] dark:border-white/10 dark:bg-slate-900" placeholder="Purpose, e.g. coding" />
+          <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] text-slate-500 dark:border-white/10 dark:text-slate-400">
+            <input type="checkbox" data-review-audio="${event.id}" class="accent-brand-600" ${event.is_background_audio ? 'checked' : ''} />
+            Background audio only
+          </label>
         </div>
       </div>`).join('');
 
@@ -690,6 +694,7 @@
           body: JSON.stringify({
             category: list.querySelector(`[data-review-category="${id}"]`).value,
             purpose: list.querySelector(`[data-review-purpose="${id}"]`).value,
+            is_background_audio: list.querySelector(`[data-review-audio="${id}"]`).checked,
           }),
         });
         await loadActivityReview();

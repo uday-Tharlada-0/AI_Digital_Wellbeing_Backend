@@ -4,7 +4,7 @@ from urllib.error import HTTPError, URLError
 
 from activitywatch_service import aggregate_events, ingest_events, sync_activitywatch
 from extensions import db
-from models import ActivityEvent, Application
+from models import ActivityEvent, Application, HourlyActivity, UsageRecord
 
 
 activity_bp = Blueprint("activity", __name__, url_prefix="/api/activity")
@@ -38,6 +38,7 @@ def events():
             "category": row.user_category or row.category,
             "detected_category": row.category,
             "purpose": row.purpose,
+            "is_background_audio": row.is_background_audio,
             "classification_source": row.classification_source,
             "start_time": row.start_time.isoformat(),
             "end_time": row.end_time.isoformat(),
@@ -67,6 +68,7 @@ def review_events():
                 "start_time": row.start_time,
                 "duration_minutes": 0,
                 "event_count": 0,
+                "is_background_audio": row.is_background_audio,
             },
         )
         group["duration_minutes"] += row.duration_seconds / 60
@@ -87,6 +89,7 @@ def classify_event(event_id):
     payload = request.get_json(force=True)
     category = str(payload.get("category", "")).strip()
     purpose = str(payload.get("purpose", "")).strip()
+    is_background_audio = bool(payload.get("is_background_audio", False))
     if category not in ALLOWED_CATEGORIES:
         return jsonify({"error": "Invalid category."}), 400
     matching_events = ActivityEvent.query.filter_by(
@@ -96,15 +99,23 @@ def classify_event(event_id):
         category=row.category,
         user_category=None,
     ).all()
+    affected_dates = {event.start_time.date() for event in matching_events}
     for event in matching_events:
         event.user_category = category
         event.purpose = purpose[:120] or None
+        event.is_background_audio = is_background_audio
         event.classification_source = "user"
     application = Application.query.filter_by(name=row.application_name).first()
     if application:
         application.category = category
         application.is_productive = category in {"Development", "Study", "Work", "Communication", "Design"}
     db.session.commit()
+    for affected_date in affected_dates:
+        if application:
+            UsageRecord.query.filter_by(
+                date=affected_date, application_id=application.id
+            ).delete(synchronize_session=False)
+        HourlyActivity.query.filter_by(date=affected_date).delete(synchronize_session=False)
     aggregate_events(session["user_id"])
     db.session.commit()
-    return jsonify({"id": row.id, "category": category, "purpose": row.purpose})
+    return jsonify({"id": row.id, "category": category, "purpose": row.purpose, "is_background_audio": is_background_audio})

@@ -1,4 +1,5 @@
 import json
+import hashlib
 import re
 from datetime import date, datetime, timedelta, timezone
 from urllib.request import Request, urlopen
@@ -79,8 +80,13 @@ def _event_values(bucket_id, index, event):
     start = _parse_time(event.get("timestamp"))
     duration = max(0.0, float(event.get("duration") or 0))
     category, productive = classify(application, website, title)
+    stable_key = json.dumps(
+        {"timestamp": event.get("timestamp"), "duration": duration, "data": data},
+        sort_keys=True,
+        default=str,
+    ).encode("utf-8")
     return {
-        "source_event_id": f"{bucket_id}:{index}:{event.get('timestamp')}:{duration}",
+        "source_event_id": hashlib.sha1(stable_key).hexdigest(),
         "application_name": str(application)[:120],
         "website": str(website)[:500] or None,
         "category": category,
@@ -93,24 +99,41 @@ def _event_values(bucket_id, index, event):
 
 def _events_from_buckets(base_url):
     buckets = _request_json(base_url, "/api/0/buckets/")
-    has_browser_bucket = any(
-        str(bucket.get("type", "")).lower() in {"web", "browser"}
-        for bucket in buckets.values()
-    )
     imported = []
+    window_bucket_ids = []
+    web_bucket_ids = []
     for bucket_id, bucket in buckets.items():
-        if any(word in bucket_id.lower() for word in IGNORED_BUCKET_WORDS):
-            continue
+        lowered_id = bucket_id.lower()
         bucket_type = str(bucket.get("type", "")).lower()
-        if bucket_type and bucket_type not in {"app", "web", "window", "currentwindow", "browser"}:
+        if any(word in lowered_id for word in IGNORED_BUCKET_WORDS):
             continue
+        if lowered_id.startswith("aw-watcher-window_") or bucket_type in {"window", "currentwindow"}:
+            window_bucket_ids.append(bucket_id)
+        elif (
+            lowered_id.startswith("aw-watcher-web-")
+            or lowered_id.startswith("aw-watcher-web_")
+            or bucket_type in {"web", "browser"}
+        ):
+            web_bucket_ids.append(bucket_id)
+
+    counts = {"window_events": 0, "web_events": 0, "window_buckets": window_bucket_ids, "web_buckets": web_bucket_ids}
+    seen_ids = set()
+    for bucket_id, bucket_kind in [
+        *[(bucket_id, "window_events") for bucket_id in window_bucket_ids],
+        *[(bucket_id, "web_events") for bucket_id in web_bucket_ids],
+    ]:
         events = _request_json(base_url, f"/api/0/buckets/{quote(bucket_id, safe='')}/events")
         for index, event in enumerate(events):
-            if event.get("data", {}).get("url") or event.get("data", {}).get("domain"):
-                has_browser_bucket = True
             if event.get("duration", 0) and event.get("timestamp"):
-                imported.append(_event_values(bucket_id, index, event))
-    return imported, has_browser_bucket
+                value = _event_values(bucket_id, index, event)
+                if value["source_event_id"] in seen_ids:
+                    continue
+                if bucket_kind == "window_events" and web_bucket_ids and value["application_name"] in {"Google Chrome", "Microsoft Edge"}:
+                    continue
+                seen_ids.add(value["source_event_id"])
+                imported.append(value)
+                counts[bucket_kind] += 1
+    return imported, counts
 
 
 def _ensure_application(name, category, productive):
@@ -134,6 +157,8 @@ def aggregate_events(user_id):
     app_metadata = {}
     for event in events:
         minutes = event.duration_seconds / 60
+        if event.is_background_audio:
+            continue
         day = event.start_time.date()
         daily[(event.application_name, day)] = daily.get((event.application_name, day), 0) + minutes
         hourly[(day, event.start_time.hour)] = hourly.get((day, event.start_time.hour), 0) + minutes
@@ -167,28 +192,42 @@ def repair_application_categories():
 
 
 def sync_activitywatch(user_id, base_url="http://localhost:5600"):
-    values, has_browser_bucket = _events_from_buckets(base_url)
+    values, bucket_counts = _events_from_buckets(base_url)
+    previous = ActivityEvent.query.filter_by(user_id=user_id, source="activitywatch").all()
+    user_labels = {
+        (event.application_name, event.website, event.start_time, event.duration_seconds): (
+            event.user_category,
+            event.purpose,
+            event.is_background_audio,
+        )
+        for event in previous
+        if event.classification_source == "user"
+    }
+    for event in previous:
+        db.session.delete(event)
+    db.session.flush()
     added = 0
     for value in values:
-        exists = ActivityEvent.query.filter_by(user_id=user_id, source="activitywatch", source_event_id=value["source_event_id"]).first()
-        if exists:
-            if exists.classification_source != "user":
-                exists.application_name = value["application_name"]
-                exists.website = value["website"]
-                exists.category = value["category"]
-                exists.is_productive = value["is_productive"]
-            continue
-        db.session.add(ActivityEvent(user_id=user_id, source="activitywatch", **value))
+        label = user_labels.get(
+            (value["application_name"], value["website"], value["start_time"], value["duration_seconds"])
+        )
+        db.session.add(
+            ActivityEvent(
+                user_id=user_id,
+                source="activitywatch",
+                user_category=label[0] if label else None,
+                purpose=label[1] if label else None,
+                is_background_audio=label[2] if label else False,
+                classification_source="user" if label else "automatic",
+                **value,
+            )
+        )
         added += 1
     # ActivityWatch is the source of truth for the current day. Remove demo
     # and legacy executable totals before rebuilding today's real totals.
     today = date.today()
-    known_names = {item["name"] for item in DEFAULT_APPS}
-    known_names.update(APPLICATION_ALIASES)
-    known_names.update({"SearchHost.exe", "ShellHost.exe", "explorer.exe"})
-    app_ids = [row.id for row in Application.query.filter(Application.name.in_(known_names)).all()]
-    if app_ids:
-        UsageRecord.query.filter(UsageRecord.application_id.in_(app_ids), UsageRecord.date == today).delete(synchronize_session=False)
+    UsageRecord.query.filter(UsageRecord.date == today).delete(synchronize_session=False)
+    HourlyActivity.query.filter(HourlyActivity.date == today).delete(synchronize_session=False)
     repair_application_categories()
     aggregate_events(user_id)
     db.session.commit()
@@ -205,7 +244,11 @@ def sync_activitywatch(user_id, base_url="http://localhost:5600"):
         "added": added,
         "source": base_url,
         "model_retrained": model_retrained,
-        "browser_watcher": has_browser_bucket,
+        "browser_watcher": bool(bucket_counts["web_buckets"]),
+        "window_events": bucket_counts["window_events"],
+        "web_events": bucket_counts["web_events"],
+        "window_buckets": bucket_counts["window_buckets"],
+        "web_buckets": bucket_counts["web_buckets"],
     }
 
 

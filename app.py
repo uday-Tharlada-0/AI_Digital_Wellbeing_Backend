@@ -69,6 +69,7 @@ def create_app():
         for column_name, column_type in (
             ("user_category", "VARCHAR(60)"),
             ("purpose", "VARCHAR(120)"),
+            ("is_background_audio", "BOOLEAN NOT NULL DEFAULT 0"),
             ("classification_source", "VARCHAR(20) NOT NULL DEFAULT 'automatic'"),
         ):
             if column_name not in activity_columns:

@@ -57,6 +57,7 @@ class ActivityEvent(db.Model):
     is_productive = db.Column(db.Boolean, nullable=False, default=False)
     user_category = db.Column(db.String(60), nullable=True)
     purpose = db.Column(db.String(120), nullable=True)
+    is_background_audio = db.Column(db.Boolean, nullable=False, default=False)
     classification_source = db.Column(db.String(20), nullable=False, default="automatic")
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
