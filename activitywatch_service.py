@@ -169,11 +169,19 @@ def aggregate_events(user_id):
     for (name, day), minutes in daily.items():
         category, productive = app_metadata[name]
         application = _ensure_application(name, category, productive)
-        record = UsageRecord.query.filter_by(application_id=application.id, date=day).first()
+        record = UsageRecord.query.filter_by(
+            application_id=application.id, date=day, user_id=user_id, source="desktop"
+        ).first()
         if record:
             record.minutes = round(minutes, 1)
         else:
-            db.session.add(UsageRecord(application_id=application.id, date=day, minutes=round(minutes, 1)))
+            db.session.add(UsageRecord(
+                application_id=application.id,
+                user_id=user_id,
+                date=day,
+                minutes=round(minutes, 1),
+                source="desktop",
+            ))
     for (day, hour), minutes in hourly.items():
         record = HourlyActivity.query.filter_by(date=day, hour=hour).first()
         if record:
@@ -226,7 +234,12 @@ def sync_activitywatch(user_id, base_url="http://localhost:5600"):
     # ActivityWatch is the source of truth for the current day. Remove demo
     # and legacy executable totals before rebuilding today's real totals.
     today = date.today()
-    UsageRecord.query.filter(UsageRecord.date == today).delete(synchronize_session=False)
+    UsageRecord.query.filter(
+        UsageRecord.date == today,
+        UsageRecord.user_id == user_id,
+        UsageRecord.source == "desktop",
+    ).delete(synchronize_session=False)
+    # HourlyActivity predates user ownership; rebuild only after desktop sync.
     HourlyActivity.query.filter(HourlyActivity.date == today).delete(synchronize_session=False)
     repair_application_categories()
     aggregate_events(user_id)

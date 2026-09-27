@@ -644,7 +644,7 @@
           await loadPredictions();
           await loadActivityReview();
         } catch (error) {
-          status.textContent = 'ActivityWatch was not available. Start it locally and try again.';
+          status.textContent = `ActivityWatch sync failed: ${error.message}`;
         } finally {
           button.disabled = false;
           button.textContent = 'Sync ActivityWatch';
@@ -663,7 +663,7 @@
       list.innerHTML = '<p class="text-[12px] text-slate-400">Nothing needs review right now.</p>';
       return;
     }
-    const categories = ['Development', 'Study', 'Work', 'Communication', 'Entertainment', 'Design', 'Browsing', 'Personal', 'Other'];
+    const categories = ['Development', 'Study', 'Work', 'Communication', 'Entertainment', 'Design', 'Browsing', 'Personal', 'Background', 'Other'];
     list.innerHTML = events.map((event) => `
       <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/[.03]" data-review-id="${event.id}">
         <div class="flex items-center justify-between gap-3">

@@ -1,5 +1,5 @@
 from datetime import date
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 from sqlalchemy import func
 
 from extensions import db
@@ -15,14 +15,14 @@ def _serialize(app: Application):
 
     today_minutes = (
         db.session.query(func.sum(UsageRecord.minutes))
-        .filter(UsageRecord.application_id == app.id, UsageRecord.date == today)
+        .filter(UsageRecord.application_id == app.id, UsageRecord.date == today, UsageRecord.user_id == session["user_id"])
         .scalar()
         or 0
     )
     week_minutes = (
         db.session.query(func.sum(UsageRecord.minutes))
         .filter(
-            UsageRecord.application_id == app.id, UsageRecord.date >= week_start
+            UsageRecord.application_id == app.id, UsageRecord.date >= week_start, UsageRecord.user_id == session["user_id"]
         )
         .scalar()
         or 0
@@ -123,11 +123,11 @@ def log_usage(app_id):
     minutes = float(request.get_json(force=True).get("minutes", 0))
     today = date.today()
 
-    record = UsageRecord.query.filter_by(application_id=app_id, date=today).first()
+    record = UsageRecord.query.filter_by(application_id=app_id, date=today, user_id=session["user_id"]).first()
     if record:
         record.minutes += minutes
     else:
-        record = UsageRecord(application_id=app_id, date=today, minutes=minutes)
+        record = UsageRecord(application_id=app_id, user_id=session["user_id"], date=today, minutes=minutes)
         db.session.add(record)
     db.session.commit()
     return jsonify({"application_id": app_id, "date": today.isoformat(), "minutes": record.minutes})

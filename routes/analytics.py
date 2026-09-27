@@ -1,6 +1,6 @@
 import io
 from datetime import date, timedelta
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, request, send_file, session
 from sqlalchemy import func
 
 from extensions import db
@@ -14,7 +14,7 @@ def _day_totals(the_date):
     rows = (
         db.session.query(UsageRecord.minutes, Application.is_productive)
         .join(Application, Application.id == UsageRecord.application_id)
-        .filter(UsageRecord.date == the_date)
+        .filter(UsageRecord.date == the_date, UsageRecord.user_id == session["user_id"])
         .all()
     )
     total = sum(r[0] for r in rows)
@@ -79,7 +79,7 @@ def week_over_week():
         week_start = week_end - timedelta(days=6)
         total = (
             db.session.query(func.sum(UsageRecord.minutes))
-            .filter(UsageRecord.date >= week_start, UsageRecord.date <= week_end)
+            .filter(UsageRecord.date >= week_start, UsageRecord.date <= week_end, UsageRecord.user_id == session["user_id"])
             .scalar()
             or 0
         )
@@ -112,7 +112,7 @@ def insights():
     this_week = dict(
         db.session.query(Application.category, func.sum(UsageRecord.minutes))
         .join(UsageRecord, UsageRecord.application_id == Application.id)
-        .filter(UsageRecord.date >= week_start)
+        .filter(UsageRecord.date >= week_start, UsageRecord.user_id == session["user_id"])
         .group_by(Application.category)
         .all()
     )
@@ -121,7 +121,7 @@ def insights():
     prev_week = dict(
         db.session.query(Application.category, func.sum(UsageRecord.minutes))
         .join(UsageRecord, UsageRecord.application_id == Application.id)
-        .filter(UsageRecord.date >= prev_start, UsageRecord.date <= prev_end)
+        .filter(UsageRecord.date >= prev_start, UsageRecord.date <= prev_end, UsageRecord.user_id == session["user_id"])
         .group_by(Application.category)
         .all()
     )
@@ -220,7 +220,7 @@ def export_excel():
     for app in Application.query.all():
         total = (
             db.session.query(func.sum(UsageRecord.minutes))
-            .filter(UsageRecord.application_id == app.id, UsageRecord.date >= week_start)
+            .filter(UsageRecord.application_id == app.id, UsageRecord.date >= week_start, UsageRecord.user_id == session["user_id"])
             .scalar()
             or 0
         )

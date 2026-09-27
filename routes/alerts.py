@@ -1,5 +1,5 @@
 from datetime import date
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 from sqlalchemy import func
 
 from extensions import db
@@ -25,7 +25,7 @@ def get_alerts():
 
     total_today = (
         db.session.query(func.sum(UsageRecord.minutes))
-        .filter(UsageRecord.date == today)
+        .filter(UsageRecord.date == today, UsageRecord.user_id == session["user_id"])
         .scalar()
         or 0
     )
@@ -36,7 +36,7 @@ def get_alerts():
     for app in Application.query.filter(Application.daily_limit_minutes.isnot(None)):
         used = (
             db.session.query(func.sum(UsageRecord.minutes))
-            .filter(UsageRecord.application_id == app.id, UsageRecord.date == today)
+            .filter(UsageRecord.application_id == app.id, UsageRecord.date == today, UsageRecord.user_id == session["user_id"])
             .scalar()
             or 0
         )

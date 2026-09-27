@@ -1,5 +1,5 @@
 from datetime import date
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, session
 from sqlalchemy import func
 
 from extensions import db
@@ -14,7 +14,7 @@ def _day_totals(the_date):
     rows = (
         db.session.query(UsageRecord.minutes, Application.is_productive)
         .join(Application, Application.id == UsageRecord.application_id)
-        .filter(UsageRecord.date == the_date)
+        .filter(UsageRecord.date == the_date, UsageRecord.user_id == session["user_id"])
         .all()
     )
     total = sum(r[0] for r in rows)
@@ -46,7 +46,7 @@ def today_summary():
     top_apps = (
         db.session.query(Application, UsageRecord.minutes)
         .join(UsageRecord, UsageRecord.application_id == Application.id)
-        .filter(UsageRecord.date == today, Application.is_visible.is_(True))
+        .filter(UsageRecord.date == today, UsageRecord.user_id == session["user_id"], Application.is_visible.is_(True))
         .order_by(UsageRecord.minutes.desc())
         .limit(5)
         .all()
@@ -81,7 +81,7 @@ def today_summary():
     cat_rows = (
         db.session.query(Application.category, func.sum(UsageRecord.minutes))
         .join(UsageRecord, UsageRecord.application_id == Application.id)
-        .filter(UsageRecord.date >= week_days[0])
+        .filter(UsageRecord.date >= week_days[0], UsageRecord.user_id == session["user_id"])
         .group_by(Application.category)
         .all()
     )
@@ -93,7 +93,7 @@ def today_summary():
     app_bars = (
         db.session.query(Application.name, Application.color, UsageRecord.minutes)
         .join(UsageRecord, UsageRecord.application_id == Application.id)
-        .filter(UsageRecord.date == today, Application.is_visible.is_(True))
+        .filter(UsageRecord.date == today, UsageRecord.user_id == session["user_id"], Application.is_visible.is_(True))
         .order_by(UsageRecord.minutes.desc())
         .all()
     )

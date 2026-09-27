@@ -103,14 +103,16 @@ class UsageRecord(db.Model):
     __tablename__ = "usage_records"
 
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     application_id = db.Column(
         db.Integer, db.ForeignKey("applications.id"), nullable=False
     )
     date = db.Column(db.Date, nullable=False, default=date_cls.today)
     minutes = db.Column(db.Float, nullable=False, default=0.0)
+    source = db.Column(db.String(20), nullable=False, default="web")
 
     __table_args__ = (
-        db.UniqueConstraint("application_id", "date", name="uq_app_date"),
+        db.UniqueConstraint("user_id", "application_id", "date", "source", name="uq_user_app_date_source"),
     )
 
 

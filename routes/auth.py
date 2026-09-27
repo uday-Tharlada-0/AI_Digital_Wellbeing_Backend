@@ -21,6 +21,10 @@ auth_bp = Blueprint("auth", __name__)
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
+def _mobile_request():
+    return request.headers.get("Accept") == "application/json"
+
+
 def _validate_registration(data):
     name = str(data.get("name", "")).strip()
     username = str(data.get("username", "")).strip().lower()
@@ -73,9 +77,13 @@ def login():
             error = "Incorrect username/email or password."
         else:
             _login_user(user)
+            if _mobile_request():
+                return jsonify({"user": user.to_dict()})
             destination = "auth.onboarding" if _needs_onboarding(user.id) else "index"
             return redirect(url_for(destination))
 
+    if error and _mobile_request():
+        return jsonify({"error": error}), 401
     return render_template("login.html", error=error)
 
 
@@ -90,6 +98,8 @@ def register():
         error = _validate_registration(data)
         if not error and data.get("password") != data.get("confirm_password"):
             error = "Passwords do not match."
+        if error and _mobile_request():
+            return jsonify({"error": error}), 400
         if not error:
             user = User(
                 name=data["name"].strip(),
@@ -100,6 +110,8 @@ def register():
             db.session.add(user)
             db.session.commit()
             _login_user(user)
+            if _mobile_request():
+                return jsonify({"user": user.to_dict()}), 201
             return redirect(url_for("auth.onboarding"))
 
     return render_template("register.html", error=error)
@@ -166,11 +178,19 @@ def onboarding():
                 usage = app_usage.get(str(app_id), 0)
                 if usage <= 0:
                     continue
-                record = UsageRecord.query.filter_by(application_id=app_id, date=today).first()
+                    record = UsageRecord.query.filter_by(
+                        application_id=app_id, user_id=user_id, date=today, source="web"
+                    ).first()
                 if record:
                     record.minutes = usage
                 else:
-                    db.session.add(UsageRecord(application_id=app_id, date=today, minutes=usage))
+                    db.session.add(UsageRecord(
+                        application_id=app_id,
+                        user_id=user_id,
+                        date=today,
+                        minutes=usage,
+                        source="web",
+                    ))
                 if str(app_id) in app_limits:
                     app.daily_limit_minutes = app_limits[str(app_id)]
 
