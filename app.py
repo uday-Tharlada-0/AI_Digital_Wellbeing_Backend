@@ -100,41 +100,68 @@ def create_app():
             db.session.execute(text("ALTER TABLE usage_records ADD COLUMN user_id INTEGER"))
         if "source" not in usage_columns:
             db.session.execute(text("ALTER TABLE usage_records ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT 'web'"))
-        usage_table_sql = db.session.execute(text(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='usage_records'"
-        )).scalar() or ""
-        legacy_usage_constraint = (
-            "uq_app_date" in usage_table_sql
-            or "UNIQUE (application_id, date)" in usage_table_sql
-        )
-        if legacy_usage_constraint:
-            db.session.execute(text("PRAGMA foreign_keys=OFF"))
-            db.session.execute(text("""
-                CREATE TABLE usage_records_new (
-                    id INTEGER PRIMARY KEY,
-                    user_id INTEGER,
-                    application_id INTEGER NOT NULL,
-                    date DATE NOT NULL,
-                    minutes FLOAT NOT NULL DEFAULT 0.0,
-                    source VARCHAR(20) NOT NULL DEFAULT 'web'
+                # SQLite-specific legacy migration.
+        # PostgreSQL gets its schema from db.create_all() above.
+        if db.engine.dialect.name == "sqlite":
+            usage_table_sql = db.session.execute(text(
+                "SELECT sql FROM sqlite_master "
+                "WHERE type='table' AND name='usage_records'"
+            )).scalar() or ""
+
+            legacy_usage_constraint = (
+                "uq_app_date" in usage_table_sql
+                or "UNIQUE (application_id, date)" in usage_table_sql
+            )
+
+            if legacy_usage_constraint:
+                db.session.execute(text("PRAGMA foreign_keys=OFF"))
+
+                db.session.execute(text("""
+                    CREATE TABLE usage_records_new (
+                        id INTEGER PRIMARY KEY,
+                        user_id INTEGER,
+                        application_id INTEGER NOT NULL,
+                        date DATE NOT NULL,
+                        minutes FLOAT NOT NULL DEFAULT 0.0,
+                        source VARCHAR(20) NOT NULL DEFAULT 'web'
+                    )
+                """))
+
+                db.session.execute(text("""
+                    INSERT INTO usage_records_new
+                    (id, user_id, application_id, date, minutes, source)
+                    SELECT id, user_id, application_id, date, minutes,
+                           COALESCE(source, 'web')
+                    FROM usage_records
+                """))
+
+                db.session.execute(text("DROP TABLE usage_records"))
+
+                db.session.execute(text(
+                    "ALTER TABLE usage_records_new "
+                    "RENAME TO usage_records"
+                ))
+
+                db.session.execute(text("PRAGMA foreign_keys=ON"))
+
+            usage_indexes = {
+                index["name"]
+                for index in inspect(db.engine).get_indexes("usage_records")
+            }
+
+            if "uq_app_date" in usage_indexes:
+                db.session.execute(
+                    text("DROP INDEX uq_app_date")
                 )
-            """))
-            db.session.execute(text("""
-                INSERT INTO usage_records_new (id, user_id, application_id, date, minutes, source)
-                SELECT id, user_id, application_id, date, minutes, COALESCE(source, 'web')
-                FROM usage_records
-            """))
-            db.session.execute(text("DROP TABLE usage_records"))
-            db.session.execute(text("ALTER TABLE usage_records_new RENAME TO usage_records"))
-            db.session.execute(text("PRAGMA foreign_keys=ON"))
-        usage_indexes = {index["name"] for index in inspect(db.engine).get_indexes("usage_records")}
-        if "uq_app_date" in usage_indexes:
-            db.session.execute(text("DROP INDEX uq_app_date"))
-        db.session.execute(text(
-            "CREATE UNIQUE INDEX IF NOT EXISTS uq_user_app_date_source "
-            "ON usage_records (user_id, application_id, date, source)"
-        ))
-        db.session.commit()
+
+            db.session.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "uq_user_app_date_source "
+                "ON usage_records "
+                "(user_id, application_id, date, source)"
+            ))
+
+            db.session.commit()
 
     return app
 
