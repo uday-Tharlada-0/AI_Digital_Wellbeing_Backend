@@ -197,3 +197,48 @@ def get_mobile_analytics():
 
         "insights": insights
     }), 200
+@mobile_analytics_bp.get("/prediction")
+def get_mobile_prediction():
+    user_id = get_mobile_user_id()
+
+    if not user_id:
+        return jsonify({"error": "Invalid or missing authentication token."}), 401
+
+    try:
+        from ml import predictor
+
+        result = predictor.forecast(days=1, auto_train=True)
+
+        forecast = result.get("forecast", [])
+
+        if not forecast:
+            return jsonify({
+                "error": "No prediction available."
+            }), 422
+
+        tomorrow = forecast[0]
+
+        return jsonify({
+            "today": {
+                "total_minutes": result.get("today_total_minutes", 0),
+                "productivity_score": result.get("today_productivity_score", 0)
+            },
+            "tomorrow": {
+                "date": tomorrow.get("date"),
+                "predicted_productive_minutes": tomorrow.get(
+                    "predicted_productive_minutes", 0
+                ),
+                "predicted_total_minutes": tomorrow.get(
+                    "predicted_total_minutes", 0
+                ),
+                "predicted_productivity_score": tomorrow.get(
+                    "predicted_productivity_score", 0
+                )
+            }
+        }), 200
+
+    except predictor.ModelNotTrainedError as e:
+        return jsonify({"error": str(e)}), 409
+
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 422
