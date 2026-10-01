@@ -16,7 +16,7 @@ from models import (
 )
 from app_catalog import DEFAULT_APPS
 
-
+from mobile_auth import create_mobile_token
 auth_bp = Blueprint("auth", __name__)
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
@@ -243,3 +243,34 @@ def current_user():
         session.clear()
         return jsonify({"authenticated": False}), 401
     return jsonify({"authenticated": True, "user": user.to_dict()})
+@auth_bp.post("/api/mobile/login")
+def mobile_login():
+    data = request.get_json(silent=True) or {}
+
+    identifier = str(data.get("identifier", "")).strip().lower()
+    password = str(data.get("password", ""))
+
+    if not identifier or not password:
+        return jsonify({
+            "error": "Username/email and password are required."
+        }), 400
+
+    user = User.query.filter(
+        or_(
+            User.username == identifier,
+            User.email == identifier
+        )
+    ).first()
+
+    if not user or not user.check_password(password):
+        return jsonify({
+            "error": "Incorrect username/email or password."
+        }), 401
+
+    token = create_mobile_token(user.id)
+
+    return jsonify({
+        "message": "Login successful.",
+        "token": token,
+        "user": user.to_dict()
+    }), 200

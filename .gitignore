@@ -1,7 +1,19 @@
 venv/
 __pycache__/
 *.pyc
-data/*.db
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment / secrets
+.env
+.env.*
+
+# Model files
 models_store/*.joblib
 models_store/*.json
+
+# OS files
 .DS_Store

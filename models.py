@@ -74,6 +74,7 @@ class Application(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
+    package_name = db.Column(db.String(255), nullable=True, unique=True)
     category = db.Column(db.String(60), nullable=False, default="Uncategorized")
     color = db.Column(db.String(9), nullable=False, default="#4a6cf7")
     is_productive = db.Column(db.Boolean, nullable=False, default=False)

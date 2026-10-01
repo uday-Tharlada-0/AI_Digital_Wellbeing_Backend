@@ -2,10 +2,9 @@ from flask import Flask, render_template, redirect, request, session, url_for
 from sqlalchemy import inspect, text
 from models import OnboardingProfile
 from flask_cors import CORS
-
+from routes.mobile_analytics import mobile_analytics_bp
 from config import Config
 from extensions import db
-
 
 def create_app():
     app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -23,9 +22,14 @@ def create_app():
     from routes.predictions import predictions_bp
     from routes.auth import auth_bp
     from routes.activity import activity_bp
+    from routes.mobile import mobile_bp
+    from routes.mobile_suggestions import mobile_suggestions_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(activity_bp)
+    app.register_blueprint(mobile_bp)
+    app.register_blueprint(mobile_analytics_bp)
+    app.register_blueprint(mobile_suggestions_bp)
 
     for bp in (
         dashboard_bp,
@@ -40,11 +44,12 @@ def create_app():
 
     @app.before_request
     def require_authentication():
-        public_paths = {"/login", "/register", "/health"}
+        public_paths = {"/login", "/register", "/health","/api/mobile/login"}
         if (
             request.path in public_paths
             or request.path.startswith("/static/")
             or request.path.startswith("/api/auth/")
+            or request.path.startswith("/api/mobile/")
         ):
             return None
         if not session.get("user_id"):
@@ -65,6 +70,20 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        application_columns = {
+        column["name"]
+        for column in inspect(db.engine).get_columns("applications")
+}
+
+        if "package_name" not in application_columns:
+            db.session.execute(
+            text(
+            "ALTER TABLE applications "
+            "ADD COLUMN package_name VARCHAR(255)"
+        )
+    )
+
+        db.session.commit()
         activity_columns = {column["name"] for column in inspect(db.engine).get_columns("activity_events")}
         for column_name, column_type in (
             ("user_category", "VARCHAR(60)"),
@@ -123,4 +142,4 @@ def create_app():
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5000)
