@@ -213,3 +213,89 @@ def get_mobile_usage():
         "total_minutes": round(total_minutes, 1),
         "apps": apps
     }), 200
+@mobile_bp.get("/apps")
+def get_mobile_apps():
+    user_id = get_mobile_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Invalid or missing authentication token."
+        }), 401
+
+    applications = (
+        Application.query
+        .order_by(Application.name.asc())
+        .all()
+    )
+
+    return jsonify({
+        "apps": [
+            {
+                "application_id": app.id,
+                "app_name": app.name,
+                "package_name": app.package_name,
+                "category": app.category,
+                "is_productive": bool(app.is_productive)
+            }
+            for app in applications
+        ]
+    }), 200
+
+
+@mobile_bp.patch("/apps/<int:application_id>")
+def update_mobile_app_classification(application_id):
+    user_id = get_mobile_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Invalid or missing authentication token."
+        }), 401
+
+    application = Application.query.get(application_id)
+
+    if not application:
+        return jsonify({
+            "error": "Application not found."
+        }), 404
+
+    data = request.get_json(silent=True) or {}
+
+    category = data.get("category")
+    is_productive = data.get("is_productive")
+
+    if category is not None:
+        category = str(category).strip()
+
+        if not category:
+            return jsonify({
+                "error": "category cannot be empty."
+            }), 400
+
+        if len(category) > 60:
+            return jsonify({
+                "error": "category must be 60 characters or less."
+            }), 400
+
+        application.category = category
+
+    if is_productive is not None:
+
+        if not isinstance(is_productive, bool):
+            return jsonify({
+                "error": "is_productive must be true or false."
+            }), 400
+
+        application.is_productive = is_productive
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Application classification updated successfully.",
+        "app": {
+            "application_id": application.id,
+            "app_name": application.name,
+            "package_name": application.package_name,
+            "category": application.category,
+            "is_productive": bool(application.is_productive)
+        }
+    }), 200

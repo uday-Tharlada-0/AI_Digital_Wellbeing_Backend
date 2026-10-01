@@ -8,11 +8,10 @@ SQLite file directly through pandas.read_sql rather than importing the
 Flask app context.
 """
 
-import sqlite3
 import pandas as pd
 import numpy as np
 
-from config import DB_PATH
+from models import Application, UsageRecord, FocusSession
 from app_catalog import DEFAULT_APPS
 from ml.data_generator import generate_history
 
@@ -21,51 +20,125 @@ CATEGORY_LIST = sorted({a["category"] for a in DEFAULT_APPS})
 
 
 def _load_from_db():
-    """Read daily aggregates straight out of the SQLite database."""
-    conn = sqlite3.connect(DB_PATH)
+    """Read daily aggregates from the configured SQLAlchemy database."""
+    from flask import has_app_context
+    from extensions import db
+
+    if not has_app_context():
+        return pd.DataFrame()
+
     try:
-        apps = pd.read_sql("SELECT id, category, is_productive FROM applications", conn)
-        usage = pd.read_sql("SELECT application_id, date, minutes FROM usage_records", conn)
-        hourly = pd.read_sql("SELECT date, hour, minutes as hourly_minutes FROM hourly_activity", conn)
-        focus = pd.read_sql(
-            "SELECT date, actual_minutes, completed FROM focus_sessions", conn
+        apps = pd.read_sql(
+            db.select(Application.id, Application.category, Application.is_productive)
+            .statement,
+            db.engine
         )
+
+        usage = pd.read_sql(
+            db.select(
+                UsageRecord.application_id,
+                UsageRecord.date,
+                UsageRecord.minutes
+            ).statement,
+            db.engine
+        )
+
+        focus = pd.read_sql(
+            db.select(
+                FocusSession.date,
+                FocusSession.actual_minutes,
+                FocusSession.completed
+            ).statement,
+            db.engine
+        )
+
     except Exception:
         return pd.DataFrame()
-    finally:
-        conn.close()
 
     if usage.empty:
         return pd.DataFrame()
 
-    usage = usage.merge(apps, left_on="application_id", right_on="id", how="left")
+    usage = usage.merge(
+        apps,
+        left_on="application_id",
+        right_on="id",
+        how="left"
+    )
+
     usage["date"] = pd.to_datetime(usage["date"])
 
-    daily_total = usage.groupby("date")["minutes"].sum().rename("total_minutes")
+    daily_total = (
+        usage.groupby("date")["minutes"]
+        .sum()
+        .rename("total_minutes")
+    )
+
     daily_productive = (
-        usage[usage["is_productive"] == 1].groupby("date")["minutes"].sum().rename("productive_minutes")
+        usage[usage["is_productive"] == True]
+        .groupby("date")["minutes"]
+        .sum()
+        .rename("productive_minutes")
     )
 
     cat_pivot = usage.pivot_table(
-        index="date", columns="category", values="minutes", aggfunc="sum", fill_value=0
+        index="date",
+        columns="category",
+        values="minutes",
+        aggfunc="sum",
+        fill_value=0
     )
-    cat_pivot.columns = [f"cat_{c.lower()}_minutes" for c in cat_pivot.columns]
 
-    df = pd.concat([daily_total, daily_productive], axis=1).fillna(0)
-    df = df.join(cat_pivot, how="left").fillna(0)
+    cat_pivot.columns = [
+        f"cat_{str(c).lower()}_minutes"
+        for c in cat_pivot.columns
+    ]
+
+    df = pd.concat(
+        [daily_total, daily_productive],
+        axis=1
+    ).fillna(0)
+
+    df = df.join(
+        cat_pivot,
+        how="left"
+    ).fillna(0)
 
     if not focus.empty:
         focus["date"] = pd.to_datetime(focus["date"])
-        focus_daily = focus.groupby("date").agg(
-            focus_minutes=("actual_minutes", lambda s: s.fillna(0).sum()),
-            focus_sessions=("completed", "count"),
-        )
-        df = df.join(focus_daily, how="left")
-    df["focus_minutes"] = df.get("focus_minutes", 0)
-    df["focus_sessions"] = df.get("focus_sessions", 0)
-    df = df.fillna(0).reset_index().rename(columns={"date": "date"})
-    return df
 
+        focus_daily = focus.groupby("date").agg(
+            focus_minutes=(
+                "actual_minutes",
+                lambda s: s.fillna(0).sum()
+            ),
+            focus_sessions=(
+                "completed",
+                "count"
+            ),
+        )
+
+        df = df.join(
+            focus_daily,
+            how="left"
+        )
+
+    df["focus_minutes"] = df.get(
+        "focus_minutes",
+        0
+    )
+
+    df["focus_sessions"] = df.get(
+        "focus_sessions",
+        0
+    )
+
+    df = (
+        df.fillna(0)
+        .reset_index()
+        .rename(columns={"date": "date"})
+    )
+
+    return df
 
 def _synthetic_dataframe(n_days=200):
     """Build the same shaped dataframe from the synthetic generator, used

@@ -32,7 +32,7 @@ def get_mobile_user_id():
 
 
 def get_usage_for_date(user_id, usage_date):
-    """Return Android usage records for one user and date."""
+    """Return Android usage records and productivity data for one date."""
 
     records = (
         UsageRecord.query
@@ -45,6 +45,7 @@ def get_usage_for_date(user_id, usage_date):
     )
 
     apps = []
+    productive_minutes = 0.0
 
     for record in records:
 
@@ -55,12 +56,19 @@ def get_usage_for_date(user_id, usage_date):
         if not application:
             continue
 
+        minutes = round(record.minutes, 1)
+
         apps.append({
             "application_id": application.id,
             "app_name": application.name,
             "package_name": application.package_name,
-            "minutes": round(record.minutes, 1)
+            "minutes": minutes,
+            "category": application.category,
+            "is_productive": bool(application.is_productive)
         })
+
+        if application.is_productive:
+            productive_minutes += record.minutes
 
     apps.sort(
         key=lambda app: app["minutes"],
@@ -71,7 +79,16 @@ def get_usage_for_date(user_id, usage_date):
         app["minutes"] for app in apps
     )
 
-    return total_minutes, apps
+    productivity_score = round(
+        (productive_minutes / total_minutes) * 100
+    ) if total_minutes > 0 else 0
+
+    return (
+        total_minutes,
+        apps,
+        productive_minutes,
+        productivity_score
+    )
 
 
 @mobile_analytics_bp.get("")
@@ -88,16 +105,15 @@ def get_mobile_analytics():
 
     yesterday = today - timedelta(days=1)
 
-    today_total, today_apps = get_usage_for_date(
-        user_id,
-        today
-    )
+    today_total, today_apps, today_productive, today_score = get_usage_for_date(
+    user_id,
+    today
+)
 
-    yesterday_total, yesterday_apps = get_usage_for_date(
-        user_id,
-        yesterday
-    )
-
+    yesterday_total, yesterday_apps, yesterday_productive, yesterday_score = get_usage_for_date(
+    user_id,
+    yesterday
+)
     # Calculate change from yesterday.
 
     if yesterday_total > 0:
@@ -164,6 +180,9 @@ def get_mobile_analytics():
         "date": today.isoformat(),
 
         "total_minutes": round(today_total, 1),
+        "productive_minutes": round(today_productive, 1),
+
+        "productivity_score": today_score,
 
         "app_count": len(today_apps),
 
