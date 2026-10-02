@@ -1,4 +1,4 @@
-from datetime import date,datetime
+from datetime import date,datetime, timezone, timedelta
 from flask import Blueprint, jsonify, request
 
 from extensions import db
@@ -343,12 +343,19 @@ def upload_usage_sessions():
 
         try:
             start_time = datetime.fromisoformat(
-                str(start_time).replace("Z", "+00:00")
+            str(start_time).replace("Z", "+00:00")
             )
 
             end_time = datetime.fromisoformat(
-                str(end_time).replace("Z", "+00:00")
-            )
+            str(end_time).replace("Z", "+00:00")
+     )
+
+    # Android sends UTC timestamps.
+    # Store them as naive IST timestamps.
+            ist = timezone(timedelta(hours=5, minutes=30))
+
+            start_time = start_time.astimezone(ist).replace(tzinfo=None)
+            end_time = end_time.astimezone(ist).replace(tzinfo=None)
 
         except ValueError:
             continue
