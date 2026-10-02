@@ -311,9 +311,10 @@ def mobile_register():
         }), 409
 
     user = User(
-        username=username,
-        email=email
-    )
+    name=username,
+    username=username,
+    email=email
+)
 
     user.set_password(password)
 
