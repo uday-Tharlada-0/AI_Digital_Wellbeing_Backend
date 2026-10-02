@@ -102,7 +102,7 @@ def register():
             return jsonify({"error": error}), 400
         if not error:
             user = User(
-                name=data["name"].strip(),
+                name=data["username"].strip().lower(),
                 username=data["username"].strip().lower(),
                 email=data["email"].strip().lower(),
             )
