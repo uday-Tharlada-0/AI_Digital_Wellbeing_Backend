@@ -563,3 +563,49 @@ def classify_usage_session(session_id):
             "classification_status": session.classification_status
         }
     }), 200
+@mobile_bp.get("/debug/duplicate-sessions")
+def debug_duplicate_sessions():
+
+    user_id = get_mobile_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Invalid or missing authentication token."
+        }), 401
+
+    from models import UsageSession
+    from sqlalchemy import func
+
+    duplicate_groups = (
+        db.session.query(
+            UsageSession.application_id,
+            UsageSession.start_time,
+            UsageSession.end_time,
+            func.count(UsageSession.id).label("count")
+        )
+        .filter(
+            UsageSession.user_id == user_id
+        )
+        .group_by(
+            UsageSession.application_id,
+            UsageSession.start_time,
+            UsageSession.end_time
+        )
+        .having(
+            func.count(UsageSession.id) > 1
+        )
+        .all()
+    )
+
+    return jsonify({
+        "duplicate_group_count": len(duplicate_groups),
+        "groups": [
+            {
+                "application_id": group.application_id,
+                "start_time": group.start_time.isoformat(),
+                "end_time": group.end_time.isoformat(),
+                "count": group.count
+            }
+            for group in duplicate_groups
+        ]
+    }), 200
