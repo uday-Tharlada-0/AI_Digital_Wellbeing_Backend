@@ -609,3 +609,77 @@ def debug_duplicate_sessions():
             for group in duplicate_groups
         ]
     }), 200
+@mobile_bp.post("/debug/cleanup-duplicate-sessions")
+def cleanup_duplicate_sessions():
+
+    user_id = get_mobile_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Invalid or missing authentication token."
+        }), 401
+
+    from models import UsageSession
+
+    sessions = (
+        UsageSession.query
+        .filter_by(user_id=user_id)
+        .order_by(
+            UsageSession.application_id,
+            UsageSession.start_time,
+            UsageSession.end_time,
+            UsageSession.id
+        )
+        .all()
+    )
+
+    groups = {}
+
+    for session in sessions:
+
+        key = (
+            session.application_id,
+            session.start_time,
+            session.end_time
+        )
+
+        groups.setdefault(key, []).append(session)
+
+    deleted_ids = []
+    kept_ids = []
+
+    for key, group in groups.items():
+
+        if len(group) <= 1:
+            continue
+
+        # Prefer a classified session.
+        classified = [
+            session
+            for session in group
+            if session.classification_status == "classified"
+        ]
+
+        if classified:
+            keep = classified[0]
+        else:
+            keep = group[0]
+
+        kept_ids.append(keep.id)
+
+        for session in group:
+
+            if session.id == keep.id:
+                continue
+
+            deleted_ids.append(session.id)
+            db.session.delete(session)
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Duplicate session cleanup completed.",
+        "deleted_count": len(deleted_ids),
+        "deleted_ids": deleted_ids,
+        "kept_ids": kept_ids
+    }), 200
