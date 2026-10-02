@@ -274,3 +274,56 @@ def mobile_login():
         "token": token,
         "user": user.to_dict()
     }), 200
+@auth_bp.post("/api/mobile/register")
+def mobile_register():
+    data = request.get_json(silent=True) or {}
+
+    username = str(data.get("username", "")).strip().lower()
+    email = str(data.get("email", "")).strip().lower()
+    password = str(data.get("password", ""))
+
+    if not username or not email or not password:
+        return jsonify({
+            "error": "Username, email, and password are required."
+        }), 400
+
+    if len(password) < 6:
+        return jsonify({
+            "error": "Password must be at least 6 characters."
+        }), 400
+
+    existing_username = User.query.filter_by(
+        username=username
+    ).first()
+
+    if existing_username:
+        return jsonify({
+            "error": "Username already exists."
+        }), 409
+
+    existing_email = User.query.filter_by(
+        email=email
+    ).first()
+
+    if existing_email:
+        return jsonify({
+            "error": "Email already exists."
+        }), 409
+
+    user = User(
+        username=username,
+        email=email
+    )
+
+    user.set_password(password)
+
+    db.session.add(user)
+    db.session.commit()
+
+    token = create_mobile_token(user.id)
+
+    return jsonify({
+        "message": "Registration successful.",
+        "token": token,
+        "user": user.to_dict()
+    }), 201
