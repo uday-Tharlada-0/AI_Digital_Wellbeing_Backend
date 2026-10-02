@@ -84,7 +84,7 @@ def get_usage_for_date(user_id, usage_date):
         # When session data exists, use sessions as the
         # source of truth.
         total_minutes = sum(
-            session.minutes for session in sessions
+    record.minutes for record in records
         )
 
         productive_minutes = sum(
