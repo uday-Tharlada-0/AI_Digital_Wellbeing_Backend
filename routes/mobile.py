@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date,datetime
 from flask import Blueprint, jsonify, request
 
 from extensions import db
@@ -297,5 +297,243 @@ def update_mobile_app_classification(application_id):
             "package_name": application.package_name,
             "category": application.category,
             "is_productive": bool(application.is_productive)
+        }
+    }), 200
+@mobile_bp.post("/sessions")
+def upload_usage_sessions():
+
+    user_id = get_mobile_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Invalid or missing authentication token."
+        }), 401
+
+    data = request.get_json(silent=True) or {}
+
+    sessions = data.get("sessions")
+
+    if not isinstance(sessions, list):
+        return jsonify({
+            "error": "sessions must be a list."
+        }), 400
+
+    saved_sessions = []
+
+    for item in sessions:
+
+        app_name = str(
+            item.get("app_name", "")
+        ).strip()
+
+        package_name = str(
+            item.get("package_name", "")
+        ).strip()
+
+        start_time = item.get("start_time")
+        end_time = item.get("end_time")
+
+        if not app_name or not package_name:
+            continue
+
+        if not start_time or not end_time:
+            continue
+
+        try:
+            start_time = datetime.fromisoformat(
+                str(start_time).replace("Z", "+00:00")
+            )
+
+            end_time = datetime.fromisoformat(
+                str(end_time).replace("Z", "+00:00")
+            )
+
+        except ValueError:
+            continue
+
+        if end_time <= start_time:
+            continue
+
+        minutes = (
+            end_time - start_time
+        ).total_seconds() / 60
+
+        if minutes < 1:
+            continue
+
+        # Find existing application
+        application = Application.query.filter_by(
+            package_name=package_name
+        ).first()
+
+        if not application:
+            application = Application.query.filter(
+                db.func.lower(Application.name)
+                == app_name.lower()
+            ).first()
+
+        # Create application if needed
+        if not application:
+
+            application = Application(
+                name=app_name,
+                package_name=package_name,
+                category="Uncategorized",
+                is_productive=False,
+                is_visible=True
+            )
+
+            db.session.add(application)
+            db.session.flush()
+
+        elif not application.package_name:
+
+            application.package_name = package_name
+
+        # Create session
+        from models import UsageSession
+
+        session = UsageSession(
+            user_id=user_id,
+            application_id=application.id,
+            start_time=start_time,
+            end_time=end_time,
+            minutes=round(minutes, 1),
+            category=None,
+            is_productive=None,
+            classification_status="unclassified"
+        )
+
+        db.session.add(session)
+
+        saved_sessions.append({
+            "application_id": application.id,
+            "app_name": application.name,
+            "package_name": application.package_name,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat(),
+            "minutes": round(minutes, 1),
+            "classification_status": "unclassified"
+        })
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Usage sessions uploaded successfully.",
+        "user_id": user_id,
+        "saved_count": len(saved_sessions),
+        "sessions": saved_sessions
+    }), 200
+@mobile_bp.get("/sessions")
+def get_usage_sessions():
+    user_id = get_mobile_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Invalid or missing authentication token."
+        }), 401
+
+    date_string = request.args.get("date")
+
+    if date_string:
+        try:
+            usage_date = date.fromisoformat(date_string)
+        except ValueError:
+            return jsonify({
+                "error": "Invalid date format. Use YYYY-MM-DD."
+            }), 400
+    else:
+        usage_date = date.today()
+
+    from models import UsageSession, Application
+
+    sessions = (
+        db.session.query(UsageSession, Application)
+        .join(
+            Application,
+            UsageSession.application_id == Application.id
+        )
+        .filter(
+            UsageSession.user_id == user_id,
+            db.func.date(UsageSession.start_time) == usage_date
+        )
+        .order_by(UsageSession.start_time.asc())
+        .all()
+    )
+
+    result = []
+
+    for session, application in sessions:
+        result.append({
+            "id": session.id,
+            "app_name": application.name,
+            "package_name": application.package_name,
+            "start_time": session.start_time.isoformat(),
+            "end_time": session.end_time.isoformat(),
+            "minutes": round(session.minutes, 1),
+            "category": session.category,
+            "is_productive": session.is_productive,
+            "classification_status": session.classification_status
+        })
+
+    return jsonify({
+        "date": usage_date.isoformat(),
+        "session_count": len(result),
+        "sessions": result
+    }), 200
+@mobile_bp.patch("/sessions/<int:session_id>")
+def classify_usage_session(session_id):
+    user_id = get_mobile_user_id()
+
+    if not user_id:
+        return jsonify({
+            "error": "Invalid or missing authentication token."
+        }), 401
+
+    from models import UsageSession
+
+    session = UsageSession.query.filter_by(
+        id=session_id,
+        user_id=user_id
+    ).first()
+
+    if not session:
+        return jsonify({
+            "error": "Usage session not found."
+        }), 404
+
+    data = request.get_json(silent=True) or {}
+
+    category = data.get("category")
+    is_productive = data.get("is_productive")
+
+    if category is None or is_productive is None:
+        return jsonify({
+            "error": "category and is_productive are required."
+        }), 400
+
+    if not isinstance(category, str) or not category.strip():
+        return jsonify({
+            "error": "category must be a non-empty string."
+        }), 400
+
+    if not isinstance(is_productive, bool):
+        return jsonify({
+            "error": "is_productive must be true or false."
+        }), 400
+
+    session.category = category.strip()
+    session.is_productive = is_productive
+    session.classification_status = "classified"
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Usage session classified successfully.",
+        "session": {
+            "id": session.id,
+            "category": session.category,
+            "is_productive": session.is_productive,
+            "classification_status": session.classification_status
         }
     }), 200

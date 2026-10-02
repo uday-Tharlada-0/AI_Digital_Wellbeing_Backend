@@ -115,7 +115,48 @@ class UsageRecord(db.Model):
     __table_args__ = (
         db.UniqueConstraint("user_id", "application_id", "date", "source", name="uq_user_app_date_source"),
     )
+class UsageSession(db.Model):
+    __tablename__ = "usage_sessions"
 
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=False
+    )
+
+    application_id = db.Column(
+        db.Integer,
+        db.ForeignKey("applications.id"),
+        nullable=False
+    )
+
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+
+    minutes = db.Column(db.Float, nullable=False, default=0.0)
+
+    category = db.Column(
+        db.String(60),
+        nullable=True
+    )
+
+    is_productive = db.Column(
+        db.Boolean,
+        nullable=True
+    )
+
+    classification_status = db.Column(
+        db.String(20),
+        nullable=False,
+        default="unclassified"
+    )
+
+    created_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow
+    )
 
 class HourlyActivity(db.Model):
     """Aggregated minutes-of-activity per hour bucket, across all apps, per day.

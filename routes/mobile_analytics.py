@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from flask import Blueprint, jsonify
 
 from extensions import db
-from models import Application, UsageRecord
+from models import Application, UsageRecord,UsageSession
 from mobile_auth import verify_mobile_token
 from flask import request
 
@@ -32,26 +32,16 @@ def get_mobile_user_id():
 
 
 def get_usage_for_date(user_id, usage_date):
-    """Return Android usage records and productivity data for one date."""
-
-    records = (
-        UsageRecord.query
-        .filter_by(
-            user_id=user_id,
-            date=usage_date,
-            source="android"
-        )
-        .all()
-    )
+    records = UsageRecord.query.filter_by(
+        user_id=user_id,
+        date=usage_date,
+        source="android"
+    ).all()
 
     apps = []
-    productive_minutes = 0.0
 
     for record in records:
-
-        application = Application.query.get(
-            record.application_id
-        )
+        application = Application.query.get(record.application_id)
 
         if not application:
             continue
@@ -67,9 +57,6 @@ def get_usage_for_date(user_id, usage_date):
             "is_productive": bool(application.is_productive)
         })
 
-        if application.is_productive:
-            productive_minutes += record.minutes
-
     apps.sort(
         key=lambda app: app["minutes"],
         reverse=True
@@ -79,9 +66,88 @@ def get_usage_for_date(user_id, usage_date):
         app["minutes"] for app in apps
     )
 
-    productivity_score = round(
-        (productive_minutes / total_minutes) * 100
-    ) if total_minutes > 0 else 0
+       # -------------------------------------------------
+    # Session-level productivity
+    # -------------------------------------------------
+
+    sessions = UsageSession.query.filter(
+        UsageSession.user_id == user_id,
+        db.func.date(UsageSession.start_time) == usage_date
+    ).all()
+
+    classified_sessions = [
+        session for session in sessions
+        if session.is_productive is not None
+    ]
+
+    if sessions:
+        # When session data exists, use sessions as the
+        # source of truth.
+        total_minutes = sum(
+            session.minutes for session in sessions
+        )
+
+        productive_minutes = sum(
+            session.minutes
+            for session in classified_sessions
+            if session.is_productive is True
+        )
+
+        # Build app usage from sessions.
+        session_apps = {}
+
+        for session in sessions:
+            application = Application.query.get(
+                session.application_id
+            )
+
+            if not application:
+                continue
+
+            if application.id not in session_apps:
+                session_apps[application.id] = {
+                    "application_id": application.id,
+                    "app_name": application.name,
+                    "package_name": application.package_name,
+                    "minutes": 0.0,
+                    "category": session.category,
+                    "is_productive": session.is_productive
+                }
+
+            session_apps[application.id]["minutes"] += session.minutes
+
+            # Prefer a classified session's information.
+            if session.classification_status == "classified":
+                session_apps[application.id]["category"] = session.category
+                session_apps[application.id]["is_productive"] = session.is_productive
+
+        apps = list(session_apps.values())
+
+        for app in apps:
+            app["minutes"] = round(app["minutes"], 1)
+
+        apps.sort(
+            key=lambda app: app["minutes"],
+            reverse=True
+        )
+
+    else:
+        # No session data yet: keep the existing
+        # daily UsageRecord behaviour.
+        productive_minutes = sum(
+            record.minutes
+            for record in records
+            if (
+                Application.query.get(record.application_id)
+                and Application.query.get(record.application_id).is_productive
+            )
+        )
+
+    productivity_score = (
+        round((productive_minutes / total_minutes) * 100)
+        if total_minutes > 0
+        else 0
+    )
 
     return (
         total_minutes,
