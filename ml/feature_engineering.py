@@ -11,7 +11,7 @@ Flask app context.
 import pandas as pd
 import numpy as np
 
-from models import Application, UsageRecord, FocusSession
+from models import Application, UsageRecord, FocusSession,UsageSession
 from app_catalog import DEFAULT_APPS
 from ml.data_generator import generate_history
 
@@ -29,8 +29,11 @@ def _load_from_db():
 
     try:
         apps = pd.read_sql(
-            db.select(Application.id, Application.category, Application.is_productive)
-            .statement,
+            db.select(
+                Application.id,
+                Application.category,
+                Application.is_productive
+            ).statement,
             db.engine
         )
 
@@ -39,6 +42,20 @@ def _load_from_db():
                 UsageRecord.application_id,
                 UsageRecord.date,
                 UsageRecord.minutes
+            ).statement,
+            db.engine
+        )
+
+        # Classified mobile sessions are the source of truth for
+        # productive minutes.
+        sessions = pd.read_sql(
+            db.select(
+                UsageSession.user_id,
+                UsageSession.start_time,
+                UsageSession.end_time,
+                UsageSession.minutes,
+                UsageSession.is_productive,
+                UsageSession.classification_status
             ).statement,
             db.engine
         )
@@ -58,6 +75,10 @@ def _load_from_db():
     if usage.empty:
         return pd.DataFrame()
 
+    # ---------------------------------------------------------
+    # TOTAL SCREEN TIME
+    # ---------------------------------------------------------
+    # UsageRecord remains the source of truth for total usage.
     usage = usage.merge(
         apps,
         left_on="application_id",
@@ -73,13 +94,45 @@ def _load_from_db():
         .rename("total_minutes")
     )
 
-    daily_productive = (
-        usage[usage["is_productive"] == True]
-        .groupby("date")["minutes"]
-        .sum()
-        .rename("productive_minutes")
+    # ---------------------------------------------------------
+    # PRODUCTIVE MINUTES
+    # ---------------------------------------------------------
+    # Use classified UsageSession records instead of
+    # Application.is_productive.
+    daily_productive = pd.Series(
+        dtype="float64",
+        name="productive_minutes"
     )
 
+    if not sessions.empty:
+        sessions["start_time"] = pd.to_datetime(
+            sessions["start_time"]
+        )
+
+        classified_sessions = sessions[
+            sessions["classification_status"] == "classified"
+        ].copy()
+
+        if not classified_sessions.empty:
+            classified_sessions["date"] = (
+                classified_sessions["start_time"].dt.normalize()
+            )
+
+            productive_sessions = classified_sessions[
+                classified_sessions["is_productive"] == True
+            ]
+
+            if not productive_sessions.empty:
+                daily_productive = (
+                    productive_sessions
+                    .groupby("date")["minutes"]
+                    .sum()
+                    .rename("productive_minutes")
+                )
+
+    # ---------------------------------------------------------
+    # CATEGORY DATA
+    # ---------------------------------------------------------
     cat_pivot = usage.pivot_table(
         index="date",
         columns="category",
@@ -103,6 +156,9 @@ def _load_from_db():
         how="left"
     ).fillna(0)
 
+    # ---------------------------------------------------------
+    # FOCUS DATA
+    # ---------------------------------------------------------
     if not focus.empty:
         focus["date"] = pd.to_datetime(focus["date"])
 
