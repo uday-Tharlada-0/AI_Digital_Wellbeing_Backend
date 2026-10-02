@@ -318,6 +318,8 @@ def upload_usage_sessions():
             "error": "sessions must be a list."
         }), 400
 
+    from models import UsageSession
+
     saved_sessions = []
 
     for item in sessions:
@@ -390,8 +392,25 @@ def upload_usage_sessions():
 
             application.package_name = package_name
 
-        # Create session
-        from models import UsageSession
+        # -------------------------------------------------
+        # DUPLICATE SESSION CHECK
+        # -------------------------------------------------
+
+        existing_session = UsageSession.query.filter_by(
+            user_id=user_id,
+            application_id=application.id,
+            start_time=start_time,
+            end_time=end_time
+        ).first()
+
+        if existing_session:
+            # Already uploaded.
+            # Do NOT create another copy.
+            continue
+
+        # -------------------------------------------------
+        # CREATE NEW SESSION
+        # -------------------------------------------------
 
         session = UsageSession(
             user_id=user_id,
